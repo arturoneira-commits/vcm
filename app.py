@@ -151,30 +151,31 @@ elif app_mode == "🤝 Socios Comunitarios":
             # Gráfico analítico: Socios únicos por Facultad
             st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
             if 'FACULTAD LÍDER' in df_merged.columns and 'ORGANIZACIÓN' in df_merged.columns:
-                # Agrupar para contar socios por facultad
                 df_grafico = df_merged.dropna(subset=['FACULTAD LÍDER', 'ORGANIZACIÓN']).groupby('FACULTAD LÍDER')['ORGANIZACIÓN'].nunique().reset_index()
                 df_grafico.columns = ['Facultad', 'Cantidad de Socios']
                 df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
                 
-                fig = px.bar(
-                    df_grafico, 
-                    x='Cantidad de Socios', 
-                    y='Facultad', 
-                    orientation='h',
-                    title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
-                    text='Cantidad de Socios',
-                    color='Cantidad de Socios',
-                    color_continuousScale='Greens'
-                )
-                fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
-                st.plotly_chart(fig, use_container_width=True)
+                if not df_grafico.empty:
+                    fig = px.bar(
+                        df_grafico, 
+                        x='Cantidad de Socios', 
+                        y='Facultad', 
+                        orientation='h',
+                        title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
+                        text='Cantidad de Socios',
+                        color='Cantidad de Socios',
+                        color_continuous_scale='Greens'
+                    )
+                    fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No hay datos suficientes para mostrar el gráfico con los filtros actuales.")
             else:
                 st.info("No hay suficientes datos de facultad para generar el gráfico.")
             
             st.markdown("---")
             st.subheader("🏢 Detalle por Socio Comunitario")
             
-            # Agrupar por organización para las tarjetas
             socios_agrupados = df_merged.groupby('ORGANIZACIÓN').agg(
                 total_convenios=('ORGANIZACIÓN', 'count'),
                 codigos_ids=('ID', lambda x: ", ".join(x.dropna().astype(str).unique())),
@@ -182,7 +183,6 @@ elif app_mode == "🤝 Socios Comunitarios":
                 tipos=('TIPO DE INICIATIVA', lambda x: ", ".join(x.dropna().astype(str).unique())) if 'TIPO DE INICIATIVA' in df_merged.columns else ('ID', lambda x: "N/A")
             ).reset_index()
             
-            # Renderizar en tarjetas visuales
             cols = st.columns(2)
             for idx, row in socios_agrupados.iterrows():
                 with cols[idx % 2]:
