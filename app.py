@@ -45,21 +45,30 @@ if 'df_bd' not in st.session_state:
 
 if 'df_inc' not in st.session_state:
     try:
-        df_inc = pd.read_excel('reporte_general_INC (2).xlsx', sheet_name='Incubadoras')
+        # Intentamos cargar la hoja Organizaciones si existe, si no la principal
+        xls_inc = pd.ExcelFile('reporte_general_INC (2).xlsx')
+        sheet_org = 'Organizaciones' if 'Organizaciones' in xls_inc.sheet_names else xls_inc.sheet_names[0]
+        df_inc = pd.read_excel('reporte_general_INC (2).xlsx', sheet_name=sheet_org)
         df_inc.columns = [c.strip() for c in df_inc.columns]
-        df_inc = df_inc[df_inc['ESTADO DEL PROYECTO'] != 'Borrador'].copy()
         st.session_state.df_inc = df_inc
     except Exception:
-        st.session_state.df_inc = pd.DataFrame(columns=['ID', 'PROYECTO', 'ESTADO DEL PROYECTO', 'FACULTAD LÍDER'])
+        st.session_state.df_inc = pd.DataFrame(columns=['ID', 'organización', 'FACULTAD LÍDER'])
 
 if 'df_pac' not in st.session_state:
     try:
-        # Intentar cargar si existe un archivo PAC local, si no, crear vacío
-        df_pac = pd.read_excel('Proyectos_PAC.xlsx')
+        xls_pac = pd.ExcelFile('Proyectos_PAC.xlsx')
+        sheet_org_pac = 'Organizaciones' if 'Organizaciones' in xls_pac.sheet_names else xls_pac.sheet_names[0]
+        df_pac = pd.read_excel('Proyectos_PAC.xlsx', sheet_name=sheet_org_pac)
         df_pac.columns = [c.strip() for c in df_pac.columns]
         st.session_state.df_pac = df_pac
     except Exception:
-        st.session_state.df_pac = pd.DataFrame(columns=['ID', 'Proyecto PAC', 'Socio Comunitario', 'Facultad', 'Tipo de Iniciativa'])
+        # Creamos un ejemplo si no hay archivo físico aún
+        st.session_state.df_pac = pd.DataFrame({
+            'ID': ['PAC001', 'PAC002', 'PAC003'],
+            'organización': ['Municipalidad de Santiago', 'Fundación Tejiendo Redes', 'Cesfam San Luis'],
+            'Facultad': ['Ingeniería', 'Ciencias Sociales', 'Medicina'],
+            'Tipo de Iniciativa': ['Innovación Social', 'Capacitación', 'Atención en Salud']
+        })
 
 # Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
@@ -95,82 +104,73 @@ if app_mode == "📊 Dashboard Principal":
     elif dataset_choice == "Reporte General Incubadoras":
         st.subheader("📊 Indicadores Clave - Incubadoras")
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Proyectos Válidos", len(df_inc))
-        col2.metric("Estudiantes", int(df_inc['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_inc.columns else 0)
-        col3.metric("Beneficiarios", int(df_inc['BENEFICIARIOS'].sum()) if 'BENEFICIARIOS' in df_inc.columns else 0)
-        col4.metric("Recursos ($)", f"${df_inc['RECURSOS APROBADOS'].sum():,.0f}" if 'RECURSOS APROBADOS' in df_inc.columns else 0)
-        
+        col1.metric("Registros en Organizaciones", len(df_inc))
         st.markdown("---")
-        st.subheader("📋 Detalle de Proyectos de Incubación")
+        st.subheader("📋 Detalle de Organizaciones - Incubadoras")
         st.dataframe(df_inc, use_container_width=True)
 
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC")
         if len(df_pac) > 0:
-            st.metric("Total Proyectos PAC", len(df_pac))
+            col1, col2 = st.columns(2)
+            col1.metric("Total Registros", len(df_pac))
             st.markdown("---")
             st.dataframe(df_pac, use_container_width=True)
         else:
-            st.info("Aún no hay registros cargados para Proyectos PAC. Sube un archivo desde la sección de gestión.")
+            st.info("Aún no hay registros cargados para Proyectos PAC.")
 
 # -------------------------------------------------------------
-# OPCIÓN 2: SOCIOS COMUNITARIOS (CON SELECTOR MANUAL DE COLUMNAS)
+# OPCIÓN 2: SOCIOS COMUNITARIOS (USANDO LA HOJA ORGANIZACIONES)
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Visualización detallada de los socios comunitarios agrupados por iniciativas.")
+    st.markdown("Información detallada de los socios comunitarios obtenida directamente desde la hoja **Organizaciones**.")
     
-    tipo_socio = st.radio("Seleccionar origen de socios:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
+    tipo_socio = st.radio("Seleccionar origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
     df_actual = st.session_state.df_pac if tipo_socio == "Proyectos PAC" else st.session_state.df_inc
     
     if len(df_actual) > 0:
-        st.write(f"**columnas detectadas en la base de datos de {tipo_socio}:**")
-        columnas_disponibles = list(df_actual.columns)
+        # Verificamos si existe la columna 'organización' (sin importar mayúsculas)
+        cols_lower = {c.lower(): c for c in df_actual.columns}
+        col_org_name = cols_lower.get('organización', cols_lower.get('organizacion', None))
         
-        # Permitir al usuario elegir qué columna representa qué, para asegurar que funcione perfectamente
-        col_c1, col_c2, col_c3 = st.columns(3)
-        with col_c1:
-            col_socio = st.selectbox("Columna de Socio Comunitario:", columnas_disponibles, index=0 if len(columnas_disponibles)>0 else 0)
-        with col_c2:
-            col_fac = st.selectbox("Columna de Facultad:", columnas_disponibles, index=min(1, len(columnas_disponibles)-1))
-        with col_c3:
-            col_tipo = st.selectbox("Columna de Tipo/Ámbito:", columnas_disponibles, index=min(2, len(columnas_disponibles)-1))
+        if col_org_name:
+            # Buscamos columnas opcionales para facultad y tipo de iniciativa de forma inteligente
+            col_fac = next((c for c in df_actual.columns if 'facultad' in c.lower()), None)
+            col_tipo = next((c for c in df_actual.columns if 'tipo' in c.lower() or 'ambito' in c.lower() or 'iniciativa' in c.lower()), None)
             
-        st.markdown("---")
-        
-        # Agrupación basada en la selección manual del usuario
-        try:
-            socios_agrupados = df_actual.groupby(col_socio).agg(
-                total_proyectos=(df_actual.columns[0], 'count'),
-                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
-                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique()))
+            # Agrupamos por la organización
+            socios_agrupados = df_actual.groupby(col_org_name).agg(
+                cantidad_convenios=(col_org_name, 'count'),
+                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_fac else (col_org_name, lambda x: "No especificado"),
+                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org_name, lambda x: "No especificado")
             ).reset_index()
             
-            # Renderizar tarjetas
+            # Renderizar en tarjetas / recuadros
             cols = st.columns(2)
             for idx, row in socios_agrupados.iterrows():
                 with cols[idx % 2]:
                     st.markdown(f"""
                         <div class="socio-card">
-                            <div class="socio-title">🏢 {row[col_socio]}</div>
-                            <div class="socio-detail"><b>Cantidad de Proyectos / Convenios:</b> {row['total_proyectos']}</div>
+                            <div class="socio-title">🏢 {row[col_org_name]}</div>
+                            <div class="socio-detail"><b>Cantidad de Convenios / Registros:</b> {row['cantidad_convenios']}</div>
                             <div class="socio-detail"><b>Facultades Involucradas:</b> {row['facultades']}</div>
                             <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
                         </div>
                     """, unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Error al agrupar los datos: {e}")
+        else:
+            st.warning(f"No se encontró la columna 'organización' en la hoja de {tipo_socio}. Columnas disponibles: {list(df_actual.columns)}")
     else:
-        st.warning(f"No hay datos cargados para {tipo_socio}. Sube un archivo Excel desde la sección de gestión.")
+        st.info(f"No hay datos cargados para {tipo_socio}.")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: SUBIR Y GESTIONAR NUEVA INFORMACIÓN
 # -------------------------------------------------------------
 else:
     st.title("📂 Gestión, Limpieza y Actualización de Archivos")
-    st.markdown("Sube nuevos archivos Excel para analizarlos, limpiarlos automáticamente y actualizar las bases de datos.")
+    st.markdown("Sube nuevos archivos Excel para analizarlos y actualizar las bases de datos.")
 
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos a Actualizar:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     uploaded_file = st.file_uploader("Selecciona un archivo Excel (.xlsx)", type=["xlsx"])
@@ -178,28 +178,21 @@ else:
     if uploaded_file is not None:
         try:
             xls_subido = pd.ExcelFile(uploaded_file)
-            hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar:", xls_subido.sheet_names)
+            hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar (ej. Organizaciones):", xls_subido.sheet_names)
             df_nuevo = pd.read_excel(uploaded_file, sheet_name=hoja_seleccionada)
             df_nuevo.columns = [c.strip() for c in df_nuevo.columns]
             
             st.write("### Vista previa del archivo subido:")
             st.dataframe(df_nuevo.head())
             
-            st.subheader("⚙️ Método de Actualización")
-            accion = st.radio("¿Qué deseas hacer con esta información?", ["Reemplazar la base de datos existente", "Agregar (Concatenar) a la base de datos existente"])
-            
-            if st.button("Aplicar Cambios en el Sistema"):
+            if st.button("Guardar Cambios en el Sistema"):
                 if dataset_choice == "BD Innovación":
-                    st.session_state.df_bd = df_nuevo if accion == "Reemplazar la base de datos existente" else pd.concat([st.session_state.df_bd, df_nuevo], ignore_index=True)
-                    st.success("¡Base de datos 'BD Innovación' actualizada correctamente!")
-                    
+                    st.session_state.df_bd = df_nuevo
                 elif dataset_choice == "Reporte General Incubadoras":
-                    st.session_state.df_inc = df_nuevo if accion == "Reemplazar la base de datos existente" else pd.concat([st.session_state.df_inc, df_nuevo], ignore_index=True)
-                    st.success("¡Base de datos 'Reporte General Incubadoras' actualizada correctamente!")
-                    
-                else: # Proyectos PAC
-                    st.session_state.df_pac = df_nuevo if accion == "Reemplazar la base de datos existente" else pd.concat([st.session_state.df_pac, df_nuevo], ignore_index=True)
-                    st.success("¡Base de datos 'Proyectos PAC' actualizada correctamente!")
+                    st.session_state.df_inc = df_nuevo
+                else:
+                    st.session_state.df_pac = df_nuevo
+                st.success("¡Base de datos actualizada correctamente!")
                     
         except Exception as e:
             st.error(f"Error al procesar el archivo: {e}")
