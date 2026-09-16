@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inicializar Estado de Sesión para persistir datos
+# Inicializar Estado de Sesión para persistir datos completos de los archivos
 if 'df_bd' not in st.session_state:
     try:
         df_bd = pd.read_excel('BD Innovacion.xlsx', sheet_name='Hoja1')
@@ -43,32 +43,29 @@ if 'df_bd' not in st.session_state:
     except Exception:
         st.session_state.df_bd = pd.DataFrame(columns=['ID', 'Facultad', 'Escuela', 'Categoria', 'Iniciativa', 'Estado', 'Estudiantes'])
 
-if 'df_inc' not in st.session_state:
+# Cargar archivos de Incubadoras conservando múltiples hojas si es posible
+if 'xls_inc_data' not in st.session_state:
     try:
-        # Intentamos cargar la hoja Organizaciones si existe, si no la principal
         xls_inc = pd.ExcelFile('reporte_general_INC (2).xlsx')
-        sheet_org = 'Organizaciones' if 'Organizaciones' in xls_inc.sheet_names else xls_inc.sheet_names[0]
-        df_inc = pd.read_excel('reporte_general_INC (2).xlsx', sheet_name=sheet_org)
-        df_inc.columns = [c.strip() for c in df_inc.columns]
-        st.session_state.df_inc = df_inc
+        st.session_state.xls_inc_sheets = xls_inc.sheet_names
+        # Guardamos todas las hojas en un diccionario de DataFrames
+        st.session_state.dict_inc = {sh: pd.read_excel('reporte_general_INC (2).xlsx', sheet_name=sh) for sh in xls_inc.sheet_names}
+        for sh in st.session_state.dict_inc:
+            st.session_state.dict_inc[sh].columns = [c.strip() for c in st.session_state.dict_inc[sh].columns]
     except Exception:
-        st.session_state.df_inc = pd.DataFrame(columns=['ID', 'organización', 'FACULTAD LÍDER'])
+        st.session_state.xls_inc_sheets = []
+        st.session_state.dict_inc = {}
 
-if 'df_pac' not in st.session_state:
+if 'xls_pac_data' not in st.session_state:
     try:
         xls_pac = pd.ExcelFile('Proyectos_PAC.xlsx')
-        sheet_org_pac = 'Organizaciones' if 'Organizaciones' in xls_pac.sheet_names else xls_pac.sheet_names[0]
-        df_pac = pd.read_excel('Proyectos_PAC.xlsx', sheet_name=sheet_org_pac)
-        df_pac.columns = [c.strip() for c in df_pac.columns]
-        st.session_state.df_pac = df_pac
+        st.session_state.xls_pac_sheets = xls_pac.sheet_names
+        st.session_state.dict_pac = {sh: pd.read_excel('Proyectos_PAC.xlsx', sheet_name=sh) for sh in xls_pac.sheet_names}
+        for sh in st.session_state.dict_pac:
+            st.session_state.dict_pac[sh].columns = [c.strip() for c in st.session_state.dict_pac[sh].columns]
     except Exception:
-        # Creamos un ejemplo si no hay archivo físico aún
-        st.session_state.df_pac = pd.DataFrame({
-            'ID': ['PAC001', 'PAC002', 'PAC003'],
-            'organización': ['Municipalidad de Santiago', 'Fundación Tejiendo Redes', 'Cesfam San Luis'],
-            'Facultad': ['Ingeniería', 'Ciencias Sociales', 'Medicina'],
-            'Tipo de Iniciativa': ['Innovación Social', 'Capacitación', 'Atención en Salud']
-        })
+        st.session_state.xls_pac_sheets = []
+        st.session_state.dict_pac = {}
 
 # Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
@@ -83,13 +80,10 @@ app_mode = st.sidebar.selectbox(
 if app_mode == "📊 Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    df_bd = st.session_state.df_bd
-    df_inc = st.session_state.df_inc
-    df_pac = st.session_state.df_pac
-
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
+        df_bd = st.session_state.df_bd
         st.subheader("📊 Indicadores Clave - BD Innovación")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Iniciativas", len(df_bd))
@@ -103,74 +97,111 @@ if app_mode == "📊 Dashboard Principal":
 
     elif dataset_choice == "Reporte General Incubadoras":
         st.subheader("📊 Indicadores Clave - Incubadoras")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Registros en Organizaciones", len(df_inc))
-        st.markdown("---")
-        st.subheader("📋 Detalle de Organizaciones - Incubadoras")
-        st.dataframe(df_inc, use_container_width=True)
+        dict_inc = st.session_state.get('dict_inc', {})
+        hoja_activa = st.selectbox("Seleccionar hoja a visualizar:", list(dict_inc.keys()) if dict_inc else ["Sin datos"])
+        if hoja_activa in dict_inc:
+            df_view = dict_inc[hoja_activa]
+            col1, col2 = st.columns(2)
+            col1.metric("Total Registros", len(df_view))
+            st.markdown("---")
+            st.dataframe(df_view, use_container_width=True)
 
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC")
-        if len(df_pac) > 0:
+        dict_pac = st.session_state.get('dict_pac', {})
+        hoja_activa_pac = st.selectbox("Seleccionar hoja a visualizar:", list(dict_pac.keys()) if dict_pac else ["Sin datos"])
+        if hoja_activa_pac in dict_pac:
+            df_view_pac = dict_pac[hoja_activa_pac]
             col1, col2 = st.columns(2)
-            col1.metric("Total Registros", len(df_pac))
+            col1.metric("Total Registros", len(df_view_pac))
             st.markdown("---")
-            st.dataframe(df_pac, use_container_width=True)
-        else:
-            st.info("Aún no hay registros cargados para Proyectos PAC.")
+            st.dataframe(df_view_pac, use_container_width=True)
 
 # -------------------------------------------------------------
-# OPCIÓN 2: SOCIOS COMUNITARIOS (USANDO LA HOJA ORGANIZACIONES)
+# OPCIÓN 2: SOCIOS COMUNITARIOS (MATCH FACULTAD <-> CÓDIGO DE PROYECTO)
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
-    st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Información detallada de los socios comunitarios obtenida directamente desde la hoja **Organizaciones**.")
+    st.title("🤝 Red de Socios Comunitarios y Cruce por Código de Proyecto")
+    st.markdown("Vinculación de la hoja **Organizaciones** con la hoja principal de proyectos usando el **código de proyecto** para obtener la facultad correspondiente.")
     
-    tipo_socio = st.radio("Seleccionar origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
+    tipo_fuente = st.radio("Seleccionar archivo origen:", ["Reporte General Incubadoras", "Proyectos PAC"], horizontal=True)
     st.markdown("---")
     
-    df_actual = st.session_state.df_pac if tipo_socio == "Proyectos PAC" else st.session_state.df_inc
+    dict_actual = st.session_state.get('dict_inc', {}) if tipo_fuente == "Reporte General Incubadoras" else st.session_state.get('dict_pac', {})
     
-    if len(df_actual) > 0:
-        # Verificamos si existe la columna 'organización' (sin importar mayúsculas)
-        cols_lower = {c.lower(): c for c in df_actual.columns}
-        col_org_name = cols_lower.get('organización', cols_lower.get('organizacion', None))
+    if 'Organizaciones' in dict_actual:
+        df_org = dict_actual['Organizaciones'].copy()
         
-        if col_org_name:
-            # Buscamos columnas opcionales para facultad y tipo de iniciativa de forma inteligente
-            col_fac = next((c for c in df_actual.columns if 'facultad' in c.lower()), None)
-            col_tipo = next((c for c in df_actual.columns if 'tipo' in c.lower() or 'ambito' in c.lower() or 'iniciativa' in c.lower()), None)
+        # Encontrar la hoja principal (cualquier hoja distinta de Organizaciones)
+        hojas_principales = [h for h in dict_actual.keys() if h != 'Organizaciones']
+        
+        if hojas_principales:
+            # Seleccionar la primera hoja principal disponible como base de proyectos
+            nombre_hoja_ppal = hojas_principales[0]
+            df_ppal = dict_actual[nombre_hoja_ppal].copy()
             
-            # Agrupamos por la organización
-            socios_agrupados = df_actual.groupby(col_org_name).agg(
-                cantidad_convenios=(col_org_name, 'count'),
-                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_fac else (col_org_name, lambda x: "No especificado"),
-                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org_name, lambda x: "No especificado")
-            ).reset_index()
+            st.info(f"💡 Realizando match entre la hoja **Organizaciones** y la hoja principal **{nombre_hoja_ppal}**.")
             
-            # Renderizar en tarjetas / recuadros
-            cols = st.columns(2)
-            for idx, row in socios_agrupados.iterrows():
-                with cols[idx % 2]:
-                    st.markdown(f"""
-                        <div class="socio-card">
-                            <div class="socio-title">🏢 {row[col_org_name]}</div>
-                            <div class="socio-detail"><b>Cantidad de Convenios / Registros:</b> {row['cantidad_convenios']}</div>
-                            <div class="socio-detail"><b>Facultades Involucradas:</b> {row['facultades']}</div>
-                            <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+            # Detectar columna de organización
+            cols_org_lower = {c.lower(): c for c in df_org.columns}
+            col_org_name = cols_org_lower.get('organización', cols_org_lower.get('organizacion', None))
+            
+            # Detectar columna de código de proyecto en ambas hojas
+            col_codigo_org = next((c for c in df_org.columns if 'código' in c.lower() or 'codigo' in c.lower() or 'id' in c.lower() or 'proyecto' in c.lower()), None)
+            
+            cols_ppal_lower = {c.lower(): c for c in df_ppal.columns}
+            col_codigo_ppal = next((c for c in df_ppal.columns if 'código' in c.lower() or 'codigo' in c.lower() or 'id' in c.lower() or 'proyecto' in c.lower()), None)
+            col_fac_ppal = next((c for c in df_ppal.columns if 'facultad' in c.lower()), None)
+            col_tipo_ppal = next((c for c in df_ppal.columns if 'tipo' in c.lower() or 'ambito' in c.lower() or 'iniciativa' in c.lower()), None)
+            
+            if col_org_name and col_codigo_org and col_codigo_ppal:
+                # Hacer el merge (match) usando el código de proyecto
+                df_merged = pd.merge(
+                    df_org, 
+                    df_ppal[[col_codigo_ppal] + ([col_fac_ppal] if col_fac_ppal else []) + ([col_tipo_ppal] if col_tipo_ppal else [])], 
+                    left_on=col_codigo_org, 
+                    right_on=col_codigo_ppal, 
+                    how='left',
+                    suffixes=('', '_ppal')
+                )
+                
+                # Definir qué columna usar para la facultad tras el merge
+                col_fac_final = col_fac_ppal if col_fac_ppal and col_fac_ppal in df_merged.columns else next((c for c in df_merged.columns if 'facultad' in c.lower()), None)
+                col_tipo_final = col_tipo_ppal if col_tipo_ppal and col_tipo_ppal in df_merged.columns else next((c for c in df_merged.columns if 'tipo' in c.lower()), None)
+                
+                # Agrupar por organización
+                socios_agrupados = df_merged.groupby(col_org_name).agg(
+                    total_proyectos=(col_org_name, 'count'),
+                    codigos_proyectos=(col_codigo_org, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                    facultades=(col_fac_final, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_fac_final else (col_org_name, lambda x: "No disponible"),
+                    tipos=(col_tipo_final, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo_final else (col_org_name, lambda x: "No disponible")
+                ).reset_index()
+                
+                # Renderizar en tarjetas visuales
+                cols = st.columns(2)
+                for idx, row in socios_agrupados.iterrows():
+                    with cols[idx % 2]:
+                        st.markdown(f"""
+                            <div class="socio-card">
+                                <div class="socio-title">🏢 {row[col_org_name]}</div>
+                                <div class="socio-detail"><b>Total Proyectos / Códigos:</b> {row['total_proyectos']} ({row['codigos_proyectos']})</div>
+                                <div class="socio-detail"><b>Facultad (Match):</b> {row['facultades']}</div>
+                                <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.warning("No se pudieron identificar automáticamente las columnas de enlace (código de proyecto u organización) para hacer el match.")
         else:
-            st.warning(f"No se encontró la columna 'organización' en la hoja de {tipo_socio}. Columnas disponibles: {list(df_actual.columns)}")
+            st.warning("La estructura del archivo necesita al menos una hoja adicional además de 'Organizaciones' para cruzar los datos del proyecto.")
     else:
-        st.info(f"No hay datos cargados para {tipo_socio}.")
+        st.warning(f"El archivo seleccionado no contiene la hoja 'Organizaciones'. Hojas disponibles: {list(dict_actual.keys())}")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: SUBIR Y GESTIONAR NUEVA INFORMACIÓN
 # -------------------------------------------------------------
 else:
     st.title("📂 Gestión, Limpieza y Actualización de Archivos")
-    st.markdown("Sube nuevos archivos Excel para analizarlos y actualizar las bases de datos.")
+    st.markdown("Sube nuevos archivos Excel para actualizar las bases de datos del sistema.")
 
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos a Actualizar:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     uploaded_file = st.file_uploader("Selecciona un archivo Excel (.xlsx)", type=["xlsx"])
@@ -178,20 +209,20 @@ else:
     if uploaded_file is not None:
         try:
             xls_subido = pd.ExcelFile(uploaded_file)
-            hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar (ej. Organizaciones):", xls_subido.sheet_names)
+            hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar:", xls_subido.sheet_names)
             df_nuevo = pd.read_excel(uploaded_file, sheet_name=hoja_seleccionada)
             df_nuevo.columns = [c.strip() for c in df_nuevo.columns]
             
             st.write("### Vista previa del archivo subido:")
             st.dataframe(df_nuevo.head())
             
-            if st.button("Guardar Cambios en el Sistema"):
+            if st.button("Guardar Cambios"):
                 if dataset_choice == "BD Innovación":
                     st.session_state.df_bd = df_nuevo
                 elif dataset_choice == "Reporte General Incubadoras":
-                    st.session_state.df_inc = df_nuevo
+                    st.session_state.dict_inc[hoja_seleccionada] = df_nuevo
                 else:
-                    st.session_state.df_pac = df_nuevo
+                    st.session_state.dict_pac[hoja_seleccionada] = df_nuevo
                 st.success("¡Base de datos actualizada correctamente!")
                     
         except Exception as e:
