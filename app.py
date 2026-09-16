@@ -39,8 +39,6 @@ if 'df_bd' not in st.session_state:
     try:
         df_bd = pd.read_excel('BD Innovacion.xlsx', sheet_name='Hoja1')
         df_bd.columns = [c.strip() for c in df_bd.columns]
-        if 'ID' not in df_bd.columns or df_bd['ID'].isnull().all():
-            df_bd['ID'] = [f"INN2025{str(i+1).zfill(3)}" for i in range(len(df_bd))]
         st.session_state.df_bd = df_bd
     except Exception:
         st.session_state.df_bd = pd.DataFrame(columns=['ID', 'Facultad', 'Escuela', 'Categoria', 'Iniciativa', 'Estado', 'Estudiantes'])
@@ -52,18 +50,16 @@ if 'df_inc' not in st.session_state:
         df_inc = df_inc[df_inc['ESTADO DEL PROYECTO'] != 'Borrador'].copy()
         st.session_state.df_inc = df_inc
     except Exception:
-        st.session_state.df_inc = pd.DataFrame(columns=['ID', 'PROYECTO', 'ESTADO DEL PROYECTO', 'FACULTAD LÍDER', 'SOCIO COMUNITARIO'])
+        st.session_state.df_inc = pd.DataFrame(columns=['ID', 'PROYECTO', 'ESTADO DEL PROYECTO', 'FACULTAD LÍDER'])
 
 if 'df_pac' not in st.session_state:
-    st.session_state.df_pac = pd.DataFrame({
-        'ID': ['PAC001', 'PAC002', 'PAC003', 'PAC004'],
-        'Proyecto PAC': ['EcoBarrio', 'Alfabetización Digital', 'Salud Comunitaria', 'Huertas Urbanas'],
-        'Socio Comunitario': ['Municipalidad de Santiago', 'Fundación Tejiendo Redes', 'Cesfam San Luis', 'Vecinos Unidos'],
-        'Facultad': ['Ingeniería', 'Ciencias Sociales', 'Medicina', 'Arquitectura'],
-        'Convenios': [2, 1, 3, 1],
-        'Tipo de Iniciativa': ['Innovación Social', 'Capacitación', 'Atención en Salud', 'Medio Ambiente'],
-        'Estudiantes': [15, 10, 20, 12]
-    })
+    try:
+        # Intentar cargar si existe un archivo PAC local, si no, crear vacío
+        df_pac = pd.read_excel('Proyectos_PAC.xlsx')
+        df_pac.columns = [c.strip() for c in df_pac.columns]
+        st.session_state.df_pac = df_pac
+    except Exception:
+        st.session_state.df_pac = pd.DataFrame(columns=['ID', 'Proyecto PAC', 'Socio Comunitario', 'Facultad', 'Tipo de Iniciativa'])
 
 # Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
@@ -93,16 +89,6 @@ if app_mode == "📊 Dashboard Principal":
         col4.metric("Estudiantes Totales", int(df_bd['Estudiantes'].sum()) if 'Estudiantes' in df_bd.columns else 0)
         
         st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            if 'Estado' in df_bd.columns:
-                fig_estado = px.pie(df_bd, names='Estado', title="Distribución por Estado", hole=0.4)
-                st.plotly_chart(fig_estado, use_container_width=True)
-        with c2:
-            if 'Facultad' in df_bd.columns:
-                fig_fac = px.bar(df_bd['Facultad'].value_counts().reset_index(), x='count', y='Facultad', orientation='h', title="Iniciativas por Facultad")
-                st.plotly_chart(fig_fac, use_container_width=True)
-            
         st.subheader("📋 Detalle de Iniciativas de Innovación")
         st.dataframe(df_bd, use_container_width=True)
 
@@ -115,97 +101,69 @@ if app_mode == "📊 Dashboard Principal":
         col4.metric("Recursos ($)", f"${df_inc['RECURSOS APROBADOS'].sum():,.0f}" if 'RECURSOS APROBADOS' in df_inc.columns else 0)
         
         st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            if 'ESTADO DEL PROYECTO' in df_inc.columns:
-                fig_est = px.pie(df_inc, names='ESTADO DEL PROYECTO', title="Estado de Proyectos", hole=0.4)
-                st.plotly_chart(fig_est, use_container_width=True)
-        with c2:
-            if 'ÁMBITO DE ACCIÓN' in df_inc.columns:
-                fig_amb = px.bar(df_inc['ÁMBITO DE ACCIÓN'].value_counts().reset_index(), x='count', y='ÁMBITO DE ACCIÓN', orientation='h', title="Ámbito de Acción")
-                st.plotly_chart(fig_amb, use_container_width=True)
-            
         st.subheader("📋 Detalle de Proyectos de Incubación")
         st.dataframe(df_inc, use_container_width=True)
 
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC")
         if len(df_pac) > 0:
-            col1, col2 = st.columns(2)
-            col1.metric("Total Proyectos PAC", len(df_pac))
-            col2.metric("Estudiantes Totales", int(df_pac['Estudiantes'].sum()) if 'Estudiantes' in df_pac.columns else 0)
-            
+            st.metric("Total Proyectos PAC", len(df_pac))
             st.markdown("---")
             st.dataframe(df_pac, use_container_width=True)
         else:
-            st.info("Aún no hay registros cargados para Proyectos PAC.")
+            st.info("Aún no hay registros cargados para Proyectos PAC. Sube un archivo desde la sección de gestión.")
 
 # -------------------------------------------------------------
-# OPCIÓN 2: SOCIOS COMUNITARIOS (MENÚ PRINCIPAL)
+# OPCIÓN 2: SOCIOS COMUNITARIOS (CON SELECTOR MANUAL DE COLUMNAS)
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Visualización detallada de los socios comunitarios agrupados por iniciativas PAC e Incubadoras.")
+    st.markdown("Visualización detallada de los socios comunitarios agrupados por iniciativas.")
     
-    # Selector de qué socio comunitario visualizar
     tipo_socio = st.radio("Seleccionar origen de socios:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
-    if tipo_socio == "Proyectos PAC":
-        df_pac = st.session_state.df_pac
-        if len(df_pac) > 0:
-            col_socio_pac = next((c for c in df_pac.columns if 'socio' in c.lower()), 'Socio Comunitario')
-            col_fac_pac = next((c for c in df_pac.columns if 'facultad' in c.lower()), 'Facultad')
-            col_tipo_pac = next((c for c in df_pac.columns if 'tipo' in c.lower()), 'Tipo de Iniciativa')
-            col_convenios = 'Convenios' if 'Convenios' in df_pac.columns else None
-            
-            if col_socio_pac in df_pac.columns:
-                socios_agrupados = df_pac.groupby(col_socio_pac).agg(
-                    cant_convenios=(col_convenios, 'sum') if col_convenios else (col_socio_pac, 'count'),
-                    facultades=(col_fac_pac, lambda x: ", ".join(x.dropna().unique())) if col_fac_pac in df_pac.columns else ('ID', lambda x: "N/A"),
-                    tipos=(col_tipo_pac, lambda x: ", ".join(x.dropna().unique())) if col_tipo_pac in df_pac.columns else ('ID', lambda x: "N/A")
-                ).reset_index()
-                
-                cols = st.columns(2)
-                for idx, row in socios_agrupados.iterrows():
-                    with cols[idx % 2]:
-                        st.markdown(f"""
-                            <div class="socio-card">
-                                <div class="socio-title">🏢 {row[col_socio_pac]}</div>
-                                <div class="socio-detail"><b>Cantidad de Convenios / Proyectos:</b> {row['cant_convenios']}</div>
-                                <div class="socio-detail"><b>Facultades Involucradas:</b> {row['facultades']}</div>
-                                <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-        else:
-            st.info("No hay registros disponibles para Proyectos PAC.")
-            
-    else: # Incubadoras
-        df_inc = st.session_state.df_inc
-        col_socio_inc = next((c for c in df_inc.columns if 'socio' in c.lower() or 'comunitario' in c.lower()), None)
-        col_facultad_inc = next((c for c in df_inc.columns if 'facultad' in c.lower()), None)
-        col_tipo_inc = next((c for c in df_inc.columns if 'tipo' in c.lower() or 'ambito' in c.lower()), None)
+    df_actual = st.session_state.df_pac if tipo_socio == "Proyectos PAC" else st.session_state.df_inc
+    
+    if len(df_actual) > 0:
+        st.write(f"**columnas detectadas en la base de datos de {tipo_socio}:**")
+        columnas_disponibles = list(df_actual.columns)
         
-        if col_socio_inc:
-            socios_inc = df_inc.groupby(col_socio_inc).agg(
-                total_proyectos=('PROYECTO' if 'PROYECTO' in df_inc.columns else df_inc.columns[0], 'count'),
-                facultades=(col_facultad_inc, lambda x: ", ".join(x.dropna().unique())) if col_facultad_inc else ('PROYECTO', lambda x: "N/A"),
-                tipos=(col_tipo_inc, lambda x: ", ".join(x.dropna().unique())) if col_tipo_inc else ('PROYECTO', lambda x: "N/A")
+        # Permitir al usuario elegir qué columna representa qué, para asegurar que funcione perfectamente
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            col_socio = st.selectbox("Columna de Socio Comunitario:", columnas_disponibles, index=0 if len(columnas_disponibles)>0 else 0)
+        with col_c2:
+            col_fac = st.selectbox("Columna de Facultad:", columnas_disponibles, index=min(1, len(columnas_disponibles)-1))
+        with col_c3:
+            col_tipo = st.selectbox("Columna de Tipo/Ámbito:", columnas_disponibles, index=min(2, len(columnas_disponibles)-1))
+            
+        st.markdown("---")
+        
+        # Agrupación basada en la selección manual del usuario
+        try:
+            socios_agrupados = df_actual.groupby(col_socio).agg(
+                total_proyectos=(df_actual.columns[0], 'count'),
+                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique()))
             ).reset_index()
             
+            # Renderizar tarjetas
             cols = st.columns(2)
-            for idx, row in socios_inc.iterrows():
+            for idx, row in socios_agrupados.iterrows():
                 with cols[idx % 2]:
                     st.markdown(f"""
                         <div class="socio-card">
-                            <div class="socio-title">🏢 {row[col_socio_inc]}</div>
+                            <div class="socio-title">🏢 {row[col_socio]}</div>
                             <div class="socio-detail"><b>Cantidad de Proyectos / Convenios:</b> {row['total_proyectos']}</div>
                             <div class="socio-detail"><b>Facultades Involucradas:</b> {row['facultades']}</div>
                             <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
                         </div>
                     """, unsafe_allow_html=True)
-        else:
-            st.info("No se encontró una columna explícita de 'Socio Comunitario' en la base de datos de Incubadoras.")
+        except Exception as e:
+            st.error(f"Error al agrupar los datos: {e}")
+    else:
+        st.warning(f"No hay datos cargados para {tipo_socio}. Sube un archivo Excel desde la sección de gestión.")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: SUBIR Y GESTIONAR NUEVA INFORMACIÓN
@@ -227,19 +185,6 @@ else:
             st.write("### Vista previa del archivo subido:")
             st.dataframe(df_nuevo.head())
             
-            st.subheader("🧹 Reglas de Limpieza Automática")
-            limpiar_borrador = st.checkbox("Eliminar automáticamente registros en estado 'Borrador'", value=True)
-            
-            if limpiar_borrador:
-                col_estado = next((c for c in df_nuevo.columns if 'estado' in c.lower()), None)
-                if col_estado:
-                    antes = len(df_nuevo)
-                    df_nuevo = df_nuevo[df_nuevo[col_estado].astype(str).str.lower() != 'borrador'].copy()
-                    despues = len(df_nuevo)
-                    st.success(f"Se eliminaron {antes - despues} registros en estado 'Borrador'.")
-                else:
-                    st.warning("No se detectó una columna explícita de 'estado' para filtrar borradores.")
-
             st.subheader("⚙️ Método de Actualización")
             accion = st.radio("¿Qué deseas hacer con esta información?", ["Reemplazar la base de datos existente", "Agregar (Concatenar) a la base de datos existente"])
             
