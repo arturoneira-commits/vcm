@@ -50,14 +50,13 @@ if 'dict_inc' not in st.session_state:
         dict_inc = {sh: pd.read_excel('reporte_general_INC (2).xlsx', sheet_name=sh) for sh in xls_inc.sheet_names}
         for sh in dict_inc:
             dict_inc[sh].columns = [c.strip() for c in dict_inc[sh].columns]
-        # Filtrar borradores si existe la hoja principal
         if 'Incubadoras' in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc['Incubadoras'].columns:
             dict_inc['Incubadoras'] = dict_inc['Incubadoras'][dict_inc['Incubadoras']['ESTADO DEL PROYECTO'] != 'Borrador']
         st.session_state.dict_inc = dict_inc
     except Exception:
         st.session_state.dict_inc = {}
 
-# 3. Cargar Reporte PAC (reporte_general_PAC (6).xlsx)
+# 3. Cargar Reporte PAC
 if 'dict_pac' not in st.session_state:
     try:
         pac_file = next((f for f in os.listdir('.') if 'PAC' in f and f.endswith('.xlsx')), 'reporte_general_PAC (6).xlsx')
@@ -66,7 +65,6 @@ if 'dict_pac' not in st.session_state:
         for sh in dict_pac:
             dict_pac[sh].columns = [c.strip() for c in dict_pac[sh].columns]
         
-        # Limpieza automática: Excluir proyectos en estado 'Borrador' de la hoja Proyectos y filtrar las demás hojas por ID válidos
         if 'Proyectos' in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac['Proyectos'].columns:
             df_proy_pac = dict_pac['Proyectos']
             df_proy_limpio = df_proy_pac[df_proy_pac['ESTADO DEL PROYECTO'] != 'Borrador'].copy()
@@ -78,7 +76,7 @@ if 'dict_pac' not in st.session_state:
                     dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos_pac)]
                     
         st.session_state.dict_pac = dict_pac
-    except Exception as e:
+    except Exception:
         st.session_state.dict_pac = {}
 
 # Sidebar: Navegación Principal
@@ -122,11 +120,11 @@ if app_mode == "📊 Dashboard Principal":
             st.dataframe(dict_pac[hoja_activa_pac], use_container_width=True)
 
 # -------------------------------------------------------------
-# OPCIÓN 2: SOCIOS COMUNITARIOS (MATCH ORGANIZACIONES <-> PROYECTOS)
+# OPCIÓN 2: SOCIOS COMUNITARIOS (CON GRÁFICO Y MATCH)
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
-    st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos** usando el identificador **ID**.")
+    st.title("🤝 Red de Socios Comunitarios y Gráfico de Facultades")
+    st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos** para relacionar socios, facultades y tipos de iniciativas activas.")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
@@ -135,16 +133,13 @@ elif app_mode == "🤝 Socios Comunitarios":
     
     if 'Organizaciones' in dict_actual:
         df_org = dict_actual['Organizaciones'].copy()
-        
-        # Identificar la hoja principal ('Proyectos' para PAC o 'Incubadoras' para Inc)
         hoja_ppal_nombre = 'Proyectos' if 'Proyectos' in dict_actual else ('Incubadoras' if 'Incubadoras' in dict_actual else list(dict_actual.keys())[0])
         df_ppal = dict_actual[hoja_ppal_nombre].copy()
         
-        # Limpiar filas donde la organización esté vacía
         df_org = df_org.dropna(subset=['ORGANIZACIÓN']) if 'ORGANIZACIÓN' in df_org.columns else df_org
         
         if not df_org.empty and 'ID' in df_org.columns and 'ID' in df_ppal.columns:
-            # Realizar el cruce (merge) por ID de proyecto
+            # Match por ID de proyecto
             df_merged = pd.merge(
                 df_org,
                 df_ppal[['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA'] if 'FACULTAD LÍDER' in df_ppal.columns else ['ID']],
@@ -153,7 +148,33 @@ elif app_mode == "🤝 Socios Comunitarios":
                 suffixes=('', '_ppal')
             )
             
-            # Agrupar por la columna ORGANIZACIÓN
+            # Gráfico analítico: Socios únicos por Facultad
+            st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
+            if 'FACULTAD LÍDER' in df_merged.columns and 'ORGANIZACIÓN' in df_merged.columns:
+                # Agrupar para contar socios por facultad
+                df_grafico = df_merged.dropna(subset=['FACULTAD LÍDER', 'ORGANIZACIÓN']).groupby('FACULTAD LÍDER')['ORGANIZACIÓN'].nunique().reset_index()
+                df_grafico.columns = ['Facultad', 'Cantidad de Socios']
+                df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
+                
+                fig = px.bar(
+                    df_grafico, 
+                    x='Cantidad de Socios', 
+                    y='Facultad', 
+                    orientation='h',
+                    title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
+                    text='Cantidad de Socios',
+                    color='Cantidad de Socios',
+                    color_continuousScale='Greens'
+                )
+                fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No hay suficientes datos de facultad para generar el gráfico.")
+            
+            st.markdown("---")
+            st.subheader("🏢 Detalle por Socio Comunitario")
+            
+            # Agrupar por organización para las tarjetas
             socios_agrupados = df_merged.groupby('ORGANIZACIÓN').agg(
                 total_convenios=('ORGANIZACIÓN', 'count'),
                 codigos_ids=('ID', lambda x: ", ".join(x.dropna().astype(str).unique())),
@@ -168,15 +189,15 @@ elif app_mode == "🤝 Socios Comunitarios":
                     st.markdown(f"""
                         <div class="socio-card">
                             <div class="socio-title">🏢 {row['ORGANIZACIÓN']}</div>
-                            <div class="socio-detail"><b>Cantidad de Convenios / Proyectos:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
+                            <div class="socio-detail"><b>Cantidad de Proyectos / Convenios:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
                             <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
                             <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
-            st.warning("No se encontró información válida de organizaciones o la columna ID no coincide entre las hojas.")
+            st.warning("No se encontró información válida para hacer el match entre organizaciones y proyectos.")
     else:
-        st.warning(f"El archivo seleccionado no contiene una hoja llamada 'Organizaciones'. Hojas disponibles: {list(dict_actual.keys())}")
+        st.warning(f"El archivo seleccionado no contiene una hoja llamada 'Organizaciones'.")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: SUBIR Y GESTIONAR NUEVA INFORMACIÓN
