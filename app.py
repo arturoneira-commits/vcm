@@ -4,7 +4,7 @@ import plotly.express as px
 import os
 
 # Configuración de la página
-st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Proyectos Vinculación con el Medio UNIACC", layout="wide", page_icon="📊")
 
 # Estilos CSS personalizados para tarjetas de socios
 st.markdown("""
