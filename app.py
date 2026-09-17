@@ -112,8 +112,8 @@ st.sidebar.header("🎛️ Panel de Control")
 app_mode = st.sidebar.selectbox(
     "Navegación", 
     [
-        " Dashboard Principal", 
-        " Socios Comunitarios", 
+        "📊 Dashboard Principal", 
+        "🤝 Socios Comunitarios", 
         "📁 Gestión y Actualización de Archivos"
     ]
 )
@@ -124,7 +124,7 @@ app_mode = st.sidebar.selectbox(
 if app_mode == "📊 Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    st.title(" Vinculación con el Medio UNIACC")
+    st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
         df_bd = st.session_state.df_bd
