@@ -120,7 +120,7 @@ app_mode = st.sidebar.selectbox(
 if app_mode == "Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
+    st.title("Información Proyectos VcM, UNIACC")
 
     if dataset_choice == "BD Innovación":
         df_bd = st.session_state.df_bd
