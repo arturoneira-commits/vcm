@@ -54,7 +54,7 @@ if len(st.session_state.df_bd) == 0:
     except Exception:
         pass
 
-# 2. Cargar Incubadoras
+# 2. Cargar Incubadoras (Filtrando Borrador y Cancelada)
 if not st.session_state.dict_inc:
     try:
         inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
@@ -64,15 +64,17 @@ if not st.session_state.dict_inc:
             dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
             for sh in dict_inc:
                 dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
-            if 'Incubadoras' in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc['Incubadoras'].columns:
-                dict_inc['Incubadoras'] = dict_inc['Incubadoras'][
-                    ~dict_inc['Incubadoras']['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+            
+            hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
+            if hoja_inc in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc[hoja_inc].columns:
+                dict_inc[hoja_inc] = dict_inc[hoja_inc][
+                    ~dict_inc[hoja_inc]['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
                 ]
             st.session_state.dict_inc = dict_inc
     except Exception:
         pass
 
-# 3. Cargar Proyectos PAC (Filtrando estrictamente Borrador y Cancelada)
+# 3. Cargar Proyectos PAC (Filtrando Borrador y Cancelada)
 if not st.session_state.dict_pac:
     try:
         pac_files = [f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')]
@@ -90,7 +92,6 @@ if not st.session_state.dict_pac:
             
             if hoja_proyectos in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac[hoja_proyectos].columns:
                 df_proy_pac = dict_pac[hoja_proyectos]
-                # EXCLUSIÓN ESTRICTA DE BORRADOR Y CANCELADA
                 df_proy_limpio = df_proy_pac[
                     ~df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
                 ].copy()
@@ -106,7 +107,7 @@ if not st.session_state.dict_pac:
     except Exception:
         pass
 
-# Sidebar: Navegación Principal (Orden exacto con las 3 opciones)
+# Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
 app_mode = st.sidebar.selectbox(
     "Navegación", 
@@ -125,6 +126,7 @@ if app_mode == "📊 Dashboard Principal":
     
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
+    # ------------------ BD INNOVACIÓN ------------------
     if dataset_choice == "BD Innovación":
         df_bd = st.session_state.df_bd
         st.subheader("📊 Indicadores Clave - BD Innovación")
@@ -134,20 +136,78 @@ if app_mode == "📊 Dashboard Principal":
             col2.metric("En Ejecución", len(df_bd[df_bd['Estado'].str.lower() == 'en ejecución']) if 'Estado' in df_bd.columns else 0)
             col3.metric("Finalizados", len(df_bd[df_bd['Estado'].str.lower() == 'finalizado']) if 'Estado' in df_bd.columns else 0)
             col4.metric("Estudiantes Totales", int(df_bd['Estudiantes'].sum()) if 'Estudiantes' in df_bd.columns else 0)
+            
             st.markdown("---")
+            st.subheader("📈 Cantidad de Iniciativas por Facultad (BD Innovación)")
+            
+            col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
+            if col_fac_bd:
+                df_fac_bd = df_bd[col_fac_bd].value_counts().reset_index()
+                df_fac_bd.columns = ['Facultad', 'Cantidad de Iniciativas']
+                df_fac_bd = df_fac_bd.sort_values(by='Cantidad de Iniciativas', ascending=True)
+                
+                if not df_fac_bd.empty:
+                    fig_bd = px.bar(
+                        df_fac_bd,
+                        x='Cantidad de Iniciativas',
+                        y='Facultad',
+                        orientation='h',
+                        title="Iniciativas de Innovación por Facultad",
+                        text='Cantidad de Iniciativas',
+                        color='Cantidad de Iniciativas',
+                        color_continuous_scale='Purples'
+                    )
+                    fig_bd.update_layout(xaxis_title="Número de Iniciativas", yaxis_title="Facultad")
+                    st.plotly_chart(fig_bd, use_container_width=True)
+            else:
+                st.info("No se encontró una columna de facultad en BD Innovación.")
+
+            st.markdown("---")
+            st.subheader("📋 Detalle de Iniciativas de Innovación")
             st.dataframe(df_bd, use_container_width=True)
         else:
             st.info("No hay datos cargados para BD Innovación.")
 
+    # ------------------ REPORTE GENERAL INCUBADORAS ------------------
     elif dataset_choice == "Reporte General Incubadoras":
         st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
         dict_inc = st.session_state.get('dict_inc', {})
+        
         if dict_inc:
             hoja_activa = st.selectbox("Seleccionar hoja a visualizar:", list(dict_inc.keys()))
-            st.dataframe(dict_inc[hoja_activa], use_container_width=True)
+            df_inc_activa = dict_inc[hoja_activa]
+            
+            st.markdown("---")
+            st.subheader("📈 Cantidad de Proyectos por Facultad Líder (Incubadoras)")
+            
+            col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
+            if col_fac_inc:
+                df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
+                df_fac_inc.columns = ['Facultad', 'Cantidad de Proyectos']
+                df_fac_inc = df_fac_inc.sort_values(by='Cantidad de Proyectos', ascending=True)
+                
+                if not df_fac_inc.empty:
+                    fig_inc = px.bar(
+                        df_fac_inc,
+                        x='Cantidad de Proyectos',
+                        y='Facultad',
+                        orientation='h',
+                        title="Proyectos de Incubación por Facultad Líder",
+                        text='Cantidad de Proyectos',
+                        color='Cantidad de Proyectos',
+                        color_continuous_scale='Oranges'
+                    )
+                    fig_inc.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad")
+                    st.plotly_chart(fig_inc, use_container_width=True)
+            else:
+                st.info("No se encontró una columna de facultad en esta hoja de Incubadoras.")
+
+            st.markdown("---")
+            st.dataframe(df_inc_activa, use_container_width=True)
         else:
             st.info("No hay datos cargados para Incubadoras.")
 
+    # ------------------ PROYECTOS PAC ------------------
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
         dict_pac = st.session_state.get('dict_pac', {})
@@ -281,7 +341,7 @@ else:
                 for sh in dict_cargado:
                     dict_cargado[sh].columns = [str(c).strip() for c in dict_cargado[sh].columns]
                 
-                hoja_p = 'Proyectos' if 'Proyectos' in dict_cargado else list(dict_cargado.keys())[0]
+                hoja_p = 'Proyectos' if 'Proyectos' in dict_cargado else (list(dict_cargado.keys())[0])
                 if hoja_p in dict_cargado and 'ESTADO DEL PROYECTO' in dict_cargado[hoja_p].columns:
                     df_p = dict_cargado[hoja_p]
                     df_p = df_p[~df_p['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
