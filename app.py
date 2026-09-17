@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inicializar estados
+# Inicializar estados en session_state
 if 'df_bd' not in st.session_state:
     st.session_state.df_bd = pd.DataFrame()
 if 'dict_inc' not in st.session_state:
@@ -42,75 +42,70 @@ if 'dict_inc' not in st.session_state:
 if 'dict_pac' not in st.session_state:
     st.session_state.dict_pac = {}
 
-# Carga automática y flexible de archivos Excel en la raíz del repositorio
-archivos_en_raiz = os.listdir('.')
+archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
 # 1. Cargar BD Innovación
-try:
-    bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
-    if bd_files and len(st.session_state.df_bd) == 0:
-        st.session_state.df_bd = pd.read_excel(bd_files[0], sheet_name=0)
-        st.session_state.df_bd.columns = [str(c).strip() for c in st.session_state.df_bd.columns]
-except Exception:
-    pass
+if len(st.session_state.df_bd) == 0:
+    try:
+        bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
+        if bd_files:
+            st.session_state.df_bd = pd.read_excel(bd_files[0], sheet_name=0)
+            st.session_state.df_bd.columns = [str(c).strip() for c in st.session_state.df_bd.columns]
+    except Exception:
+        pass
 
 # 2. Cargar Incubadoras
-try:
-    inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
-    if inc_files and not st.session_state.dict_inc:
-        file_inc = inc_files[0]
-        xls_inc = pd.ExcelFile(file_inc)
-        dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
-        for sh in dict_inc:
-            dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
-        if 'Incubadoras' in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc['Incubadoras'].columns:
-            dict_inc['Incubadoras'] = dict_inc['Incubadoras'][dict_inc['Incubadoras']['ESTADO DEL PROYECTO'] != 'Borrador']
-        st.session_state.dict_inc = dict_inc
-except Exception:
-    pass
+if not st.session_state.dict_inc:
+    try:
+        inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
+        if inc_files:
+            file_inc = inc_files[0]
+            xls_inc = pd.ExcelFile(file_inc)
+            dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
+            for sh in dict_inc:
+                dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
+            if 'Incubadoras' in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc['Incubadoras'].columns:
+                dict_inc['Incubadoras'] = dict_inc['Incubadoras'][
+                    ~dict_inc['Incubadoras']['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+                ]
+            st.session_state.dict_inc = dict_inc
+    except Exception:
+        pass
 
-# 3. Cargar Proyectos PAC (Detecta 'Libro3', 'PAC' o cualquier excel con múltiples hojas)
-try:
-    pac_files = [f for f in archivos_en_raiz if ('PAC' in f.upper() or 'LIBRO3' in f.upper()) and f.endswith('.xlsx')]
-    if not pac_files:
-        # Si no encuentra por nombre, busca cualquier excel que tenga más de 1 hoja (como Libro3 o reporte PAC)
-        for f in archivos_en_raiz:
-            if f.endswith('.xlsx') and f not in inc_files and f not in bd_files:
-                try:
-                    if len(pd.ExcelFile(f).sheet_names) > 1:
-                        pac_files.append(f)
-                        break
-                except:
-                    pass
+# 3. Cargar Proyectos PAC (Filtrando estrictamente Borrador y Cancelada)
+if not st.session_state.dict_pac:
+    try:
+        pac_files = [f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')]
+        if not pac_files:
+            pac_files = [f for f in archivos_en_raiz if f.endswith('.xlsx') and f not in inc_files]
 
-    if pac_files and not st.session_state.dict_pac:
-        file_pac = pac_files[0]
-        xls_pac = pd.ExcelFile(file_pac)
-        dict_pac = {sh: pd.read_excel(file_pac, sheet_name=sh) for sh in xls_pac.sheet_names}
-        for sh in dict_pac:
-            dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
-        
-        # Mapear nombres de hojas estándar si vienen como Hoja1 / Hoja2
-        if 'Hoja1' in dict_pac and 'Proyectos' not in dict_pac:
-            dict_pac['Proyectos'] = dict_pac.pop('Hoja1')
-        if 'Hoja2' in dict_pac and 'Organizaciones' not in dict_pac:
-            dict_pac['Organizaciones'] = dict_pac.pop('Hoja2')
+        if pac_files:
+            file_pac = pac_files[0]
+            xls_pac = pd.ExcelFile(file_pac)
+            dict_pac = {sh: pd.read_excel(file_pac, sheet_name=sh) for sh in xls_pac.sheet_names}
+            for sh in dict_pac:
+                dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
             
-        # Limpieza automática: Excluir proyectos en estado 'Borrador'
-        if 'Proyectos' in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac['Proyectos'].columns:
-            df_proy_pac = dict_pac['Proyectos']
-            df_proy_limpio = df_proy_pac[df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower() != 'borrador'].copy()
-            dict_pac['Proyectos'] = df_proy_limpio
+            # Ubicar la hoja de Proyectos
+            hoja_proyectos = 'Proyectos' if 'Proyectos' in dict_pac else list(dict_pac.keys())[0]
             
-            ids_validos = df_proy_limpio['ID'].dropna().tolist() if 'ID' in df_proy_limpio.columns else []
-            if ids_validos:
-                for sh in dict_pac:
-                    if sh != 'Proyectos' and 'ID' in dict_pac[sh].columns:
-                        dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos)]
-                        
-        st.session_state.dict_pac = dict_pac
-except Exception as e:
-    pass
+            if hoja_proyectos in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac[hoja_proyectos].columns:
+                df_proy_pac = dict_pac[hoja_proyectos]
+                # EXCLUSIÓN ESTRICTA DE BORRADOR Y CANCELADA
+                df_proy_limpio = df_proy_pac[
+                    ~df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+                ].copy()
+                dict_pac[hoja_proyectos] = df_proy_limpio
+                
+                ids_validos = df_proy_limpio['ID'].dropna().tolist() if 'ID' in df_proy_limpio.columns else []
+                if ids_validos:
+                    for sh in dict_pac:
+                        if sh != hoja_proyectos and 'ID' in dict_pac[sh].columns:
+                            dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos)]
+                            
+            st.session_state.dict_pac = dict_pac
+    except Exception as e:
+        pass
 
 # Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
@@ -139,25 +134,26 @@ if app_mode == "📊 Dashboard Principal":
             st.markdown("---")
             st.dataframe(df_bd, use_container_width=True)
         else:
-            st.info("No se encontró el archivo de BD Innovación.")
+            st.info("No hay datos cargados para BD Innovación.")
 
     elif dataset_choice == "Reporte General Incubadoras":
-        st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores)")
+        st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
         dict_inc = st.session_state.get('dict_inc', {})
         if dict_inc:
             hoja_activa = st.selectbox("Seleccionar hoja a visualizar:", list(dict_inc.keys()))
             st.dataframe(dict_inc[hoja_activa], use_container_width=True)
         else:
-            st.info("No se encontró el archivo de Incubadoras.")
+            st.info("No hay datos cargados para Incubadoras.")
 
     else: # Proyectos PAC
-        st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores)")
+        st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
         dict_pac = st.session_state.get('dict_pac', {})
+        hoja_proyectos = 'Proyectos' if 'Proyectos' in dict_pac else (list(dict_pac.keys())[0] if dict_pac else None)
         
-        if 'Proyectos' in dict_pac:
-            df_proyectos_pac = dict_pac['Proyectos']
+        if hoja_proyectos and hoja_proyectos in dict_pac:
+            df_proyectos_pac = dict_pac[hoja_proyectos]
             col1, col2, col3 = st.columns(3)
-            col1.metric("Total Proyectos PAC", len(df_proyectos_pac))
+            col1.metric("Total Proyectos PAC Válidos", len(df_proyectos_pac))
             col2.metric("Estudiantes Participantes", int(df_proyectos_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_proyectos_pac.columns else 0)
             col3.metric("Beneficiarios Totales", int(df_proyectos_pac['BENEFICIARIOS'].sum()) if 'BENEFICIARIOS' in df_proyectos_pac.columns else 0)
             
@@ -174,7 +170,7 @@ if app_mode == "📊 Dashboard Principal":
                         x='Cantidad de Proyectos',
                         y='Facultad',
                         orientation='h',
-                        title="Proyectos PAC por Facultad Líder",
+                        title="Proyectos PAC Activos por Facultad Líder",
                         text='Cantidad de Proyectos',
                         color='Cantidad de Proyectos',
                         color_continuous_scale='Blues'
@@ -186,14 +182,14 @@ if app_mode == "📊 Dashboard Principal":
             hoja_activa_pac = st.selectbox("Seleccionar hoja de detalle PAC a visualizar:", list(dict_pac.keys()))
             st.dataframe(dict_pac[hoja_activa_pac], use_container_width=True)
         else:
-            st.info("No se detectó ningún archivo Excel de Proyectos PAC en el repositorio. Súbelo a la raíz de tu GitHub.")
+            st.info("No se encontró el archivo de Proyectos PAC en el repositorio.")
 
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios y Gráfico de Facultades")
-    st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos**.")
+    st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos** (filtrando borradores y canceladas).")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
@@ -267,7 +263,7 @@ elif app_mode == "🤝 Socios Comunitarios":
 # -------------------------------------------------------------
 else:
     st.title("📂 Gestión, Limpieza y Actualización de Archivos")
-    st.markdown("Sube nuevos archivos Excel para actualizar las bases de datos.")
+    st.markdown("Sube nuevos archivos Excel para actualizar las bases de datos del sistema.")
 
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos a Actualizar:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     uploaded_file = st.file_uploader("Selecciona un archivo Excel (.xlsx)", type=["xlsx"])
@@ -275,20 +271,32 @@ else:
     if uploaded_file is not None:
         try:
             xls_subido = pd.ExcelFile(uploaded_file)
-            hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar:", xls_subido.sheet_names)
-            df_nuevo = pd.read_excel(uploaded_file, sheet_name=hoja_seleccionada)
-            df_nuevo.columns = [str(c).strip() for c in df_nuevo.columns]
+            st.success(f"¡Archivo detectado! Hojas disponibles: {xls_subido.sheet_names}")
             
-            st.write("### Vista previa:")
-            st.dataframe(df_nuevo.head())
-            
-            if st.button("Guardar Cambios"):
+            if st.button("Procesar y Guardar con Limpieza Automática"):
+                dict_cargado = {sh: pd.read_excel(uploaded_file, sheet_name=sh) for sh in xls_subido.sheet_names}
+                for sh in dict_cargado:
+                    dict_cargado[sh].columns = [str(c).strip() for c in dict_cargado[sh].columns]
+                
+                hoja_p = 'Proyectos' if 'Proyectos' in dict_cargado else list(dict_cargado.keys())[0]
+                if hoja_p in dict_cargado and 'ESTADO DEL PROYECTO' in dict_cargado[hoja_p].columns:
+                    df_p = dict_cargado[hoja_p]
+                    # Aplicar exclusión de Borrador y Cancelada
+                    df_p = df_p[~df_p['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
+                    dict_cargado[hoja_p] = df_p
+                    ids_val = df_p['ID'].dropna().tolist() if 'ID' in df_p.columns else []
+                    if ids_val:
+                        for sh in dict_cargado:
+                            if sh != hoja_p and 'ID' in dict_cargado[sh].columns:
+                                dict_cargado[sh] = dict_cargado[sh][dict_cargado[sh]['ID'].isin(ids_val)]
+
                 if dataset_choice == "BD Innovación":
-                    st.session_state.df_bd = df_nuevo
+                    st.session_state.df_bd = list(dict_cargado.values())[0]
                 elif dataset_choice == "Reporte General Incubadoras":
-                    st.session_state.dict_inc[hoja_seleccionada] = df_nuevo
+                    st.session_state.dict_inc = dict_cargado
                 else:
-                    st.session_state.dict_pac[hoja_seleccionada] = df_nuevo
-                st.success("¡Base de datos actualizada!")
+                    st.session_state.dict_pac = dict_cargado
+                    
+                st.success("¡Base de datos procesada y guardada filtrando Borradores y Canceladas!")
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error al procesar el archivo: {e}")
