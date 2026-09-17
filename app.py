@@ -34,62 +34,83 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Cargar BD Innovación
+# Inicializar estados
 if 'df_bd' not in st.session_state:
-    try:
-        df_bd = pd.read_excel('BD Innovacion.xlsx', sheet_name='Hoja1')
-        df_bd.columns = [c.strip() for c in df_bd.columns]
-        st.session_state.df_bd = df_bd
-    except Exception:
-        st.session_state.df_bd = pd.DataFrame()
-
-# 2. Cargar Reporte Incubadoras
+    st.session_state.df_bd = pd.DataFrame()
 if 'dict_inc' not in st.session_state:
-    try:
-        xls_inc = pd.ExcelFile('reporte_general_INC (2).xlsx')
-        dict_inc = {sh: pd.read_excel('reporte_general_INC (2).xlsx', sheet_name=sh) for sh in xls_inc.sheet_names}
+    st.session_state.dict_inc = {}
+if 'dict_pac' not in st.session_state:
+    st.session_state.dict_pac = {}
+
+# Carga automática y flexible de archivos Excel en la raíz del repositorio
+archivos_en_raiz = os.listdir('.')
+
+# 1. Cargar BD Innovación
+try:
+    bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
+    if bd_files and len(st.session_state.df_bd) == 0:
+        st.session_state.df_bd = pd.read_excel(bd_files[0], sheet_name=0)
+        st.session_state.df_bd.columns = [str(c).strip() for c in st.session_state.df_bd.columns]
+except Exception:
+    pass
+
+# 2. Cargar Incubadoras
+try:
+    inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
+    if inc_files and not st.session_state.dict_inc:
+        file_inc = inc_files[0]
+        xls_inc = pd.ExcelFile(file_inc)
+        dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
         for sh in dict_inc:
-            dict_inc[sh].columns = [c.strip() for c in dict_inc[sh].columns]
+            dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
         if 'Incubadoras' in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc['Incubadoras'].columns:
             dict_inc['Incubadoras'] = dict_inc['Incubadoras'][dict_inc['Incubadoras']['ESTADO DEL PROYECTO'] != 'Borrador']
         st.session_state.dict_inc = dict_inc
-    except Exception:
-        st.session_state.dict_inc = {}
+except Exception:
+    pass
 
-# 3. Cargar Proyectos PAC desde Libro3.xlsx (o archivo PAC)
-if 'dict_pac' not in st.session_state:
-    try:
-        # Priorizamos Libro3.xlsx si está presente
-        pac_file = 'Libro3.xlsx' if os.path.exists('Libro3.xlsx') else next((f for f in os.listdir('.') if 'PAC' in f.upper() and f.endswith('.xlsx')), None)
+# 3. Cargar Proyectos PAC (Detecta 'Libro3', 'PAC' o cualquier excel con múltiples hojas)
+try:
+    pac_files = [f for f in archivos_en_raiz if ('PAC' in f.upper() or 'LIBRO3' in f.upper()) and f.endswith('.xlsx')]
+    if not pac_files:
+        # Si no encuentra por nombre, busca cualquier excel que tenga más de 1 hoja (como Libro3 o reporte PAC)
+        for f in archivos_en_raiz:
+            if f.endswith('.xlsx') and f not in inc_files and f not in bd_files:
+                try:
+                    if len(pd.ExcelFile(f).sheet_names) > 1:
+                        pac_files.append(f)
+                        break
+                except:
+                    pass
+
+    if pac_files and not st.session_state.dict_pac:
+        file_pac = pac_files[0]
+        xls_pac = pd.ExcelFile(file_pac)
+        dict_pac = {sh: pd.read_excel(file_pac, sheet_name=sh) for sh in xls_pac.sheet_names}
+        for sh in dict_pac:
+            dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
         
-        if pac_file:
-            xls_pac = pd.ExcelFile(pac_file)
-            dict_pac = {sh: pd.read_excel(pac_file, sheet_name=sh) for sh in xls_pac.sheet_names}
-            for sh in dict_pac:
-                dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
+        # Mapear nombres de hojas estándar si vienen como Hoja1 / Hoja2
+        if 'Hoja1' in dict_pac and 'Proyectos' not in dict_pac:
+            dict_pac['Proyectos'] = dict_pac.pop('Hoja1')
+        if 'Hoja2' in dict_pac and 'Organizaciones' not in dict_pac:
+            dict_pac['Organizaciones'] = dict_pac.pop('Hoja2')
             
-            # Normalizamos nombres de hojas si vienen como Hoja1 / Hoja2
-            if 'Hoja1' in dict_pac and 'Proyectos' not in dict_pac:
-                dict_pac['Proyectos'] = dict_pac.pop('Hoja1')
-            if 'Hoja2' in dict_pac and 'Organizaciones' not in dict_pac:
-                dict_pac['Organizaciones'] = dict_pac.pop('Hoja2')
+        # Limpieza automática: Excluir proyectos en estado 'Borrador'
+        if 'Proyectos' in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac['Proyectos'].columns:
+            df_proy_pac = dict_pac['Proyectos']
+            df_proy_limpio = df_proy_pac[df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower() != 'borrador'].copy()
+            dict_pac['Proyectos'] = df_proy_limpio
             
-            # Limpieza automática: Excluir proyectos en estado 'Borrador'
-            if 'Proyectos' in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac['Proyectos'].columns:
-                df_proy_pac = dict_pac['Proyectos']
-                df_proy_limpio = df_proy_pac[df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower() != 'borrador'].copy()
-                dict_pac['Proyectos'] = df_proy_limpio
-                
-                ids_validos_pac = df_proy_limpio['ID'].dropna().tolist() if 'ID' in df_proy_limpio.columns else []
+            ids_validos = df_proy_limpio['ID'].dropna().tolist() if 'ID' in df_proy_limpio.columns else []
+            if ids_validos:
                 for sh in dict_pac:
                     if sh != 'Proyectos' and 'ID' in dict_pac[sh].columns:
-                        dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos_pac)]
+                        dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos)]
                         
-            st.session_state.dict_pac = dict_pac
-        else:
-            st.session_state.dict_pac = {}
-    except Exception as e:
-        st.session_state.dict_pac = {}
+        st.session_state.dict_pac = dict_pac
+except Exception as e:
+    pass
 
 # Sidebar: Navegación Principal
 st.sidebar.header("🎛️ Panel de Control")
@@ -165,7 +186,7 @@ if app_mode == "📊 Dashboard Principal":
             hoja_activa_pac = st.selectbox("Seleccionar hoja de detalle PAC a visualizar:", list(dict_pac.keys()))
             st.dataframe(dict_pac[hoja_activa_pac], use_container_width=True)
         else:
-            st.info("Sube o verifica el archivo 'Libro3.xlsx' en la raíz de tu repositorio de GitHub.")
+            st.info("No se detectó ningún archivo Excel de Proyectos PAC en el repositorio. Súbelo a la raíz de tu GitHub.")
 
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
