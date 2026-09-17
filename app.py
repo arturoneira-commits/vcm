@@ -6,7 +6,7 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
 
-# Estilos CSS personalizados para tarjetas de socios
+# Estilos CSS personalizados para tarjetas
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -126,7 +126,6 @@ if app_mode == "📊 Dashboard Principal":
     
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
-    # ------------------ BD INNOVACIÓN ------------------
     if dataset_choice == "BD Innovación":
         df_bd = st.session_state.df_bd
         st.subheader("📊 Indicadores Clave - BD Innovación")
@@ -168,7 +167,6 @@ if app_mode == "📊 Dashboard Principal":
         else:
             st.info("No hay datos cargados para BD Innovación.")
 
-    # ------------------ REPORTE GENERAL INCUBADORAS ------------------
     elif dataset_choice == "Reporte General Incubadoras":
         st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
         dict_inc = st.session_state.get('dict_inc', {})
@@ -207,7 +205,6 @@ if app_mode == "📊 Dashboard Principal":
         else:
             st.info("No hay datos cargados para Incubadoras.")
 
-    # ------------------ PROYECTOS PAC ------------------
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
         dict_pac = st.session_state.get('dict_pac', {})
@@ -251,7 +248,7 @@ if app_mode == "📊 Dashboard Principal":
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
-    st.title("🤝 Red de Socios Comunitarios y Gráfico de Facultades")
+    st.title("🤝 Red de Socios Comunitarios")
     st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos** (filtrando borradores y canceladas).")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
@@ -275,7 +272,17 @@ elif app_mode == "🤝 Socios Comunitarios":
                 suffixes=('', '_ppal')
             )
             
+            # --- MÉTRICAS (RECUADROS): TOTAL DE SOCIOS Y TOTAL DE FACULTADES ---
+            total_socios = df_merged['ORGANIZACIÓN'].nunique() if 'ORGANIZACIÓN' in df_merged.columns else 0
+            total_facultades = df_merged['FACULTAD LÍDER'].nunique() if 'FACULTAD LÍDER' in df_merged.columns else 0
+            
+            col_m1, col_m2 = st.columns(2)
+            col_m1.metric("🏢 Total de Socios Comunitarios", total_socios)
+            col_m2.metric("🏛️ Total de Facultades Vinculadas", total_facultades)
+            
+            st.markdown("---")
             st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
+            
             if 'FACULTAD LÍDER' in df_merged.columns and 'ORGANIZACIÓN' in df_merged.columns:
                 df_grafico = df_merged.dropna(subset=['FACULTAD LÍDER', 'ORGANIZACIÓN']).groupby('FACULTAD LÍDER')['ORGANIZACIÓN'].nunique().reset_index()
                 df_grafico.columns = ['Facultad', 'Cantidad de Socios']
