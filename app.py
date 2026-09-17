@@ -108,16 +108,16 @@ if not st.session_state.dict_pac:
         pass
 
 # Sidebar: Navegación Principal
-st.sidebar.header("🎛️ Panel de Control")
+st.sidebar.header("🎛️ Panel")
 app_mode = st.sidebar.selectbox(
     "Navegación", 
-    ["📊 Dashboard Principal", "🤝 Socios Comunitarios", "📁 Subir y Gestionar Nueva Información"]
+    ["Dashboard Principal", "Socios Comunitarios", "📁 Subir y Gestionar Nueva Información"]
 )
 
 # -------------------------------------------------------------
 # OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
-if app_mode == "📊 Dashboard Principal":
+if app_mode == "Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
