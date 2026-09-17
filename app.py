@@ -4,7 +4,7 @@ import plotly.express as px
 import os
 
 # Configuración de la página
-st.set_page_config(page_title="Proyectos Vinculación con el Medio UNIACC", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
 
 # Estilos CSS personalizados para tarjetas de socios
 st.markdown("""
@@ -77,7 +77,7 @@ if not st.session_state.dict_pac:
     try:
         pac_files = [f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')]
         if not pac_files:
-            pac_files = [f for f in archivos_en_raiz if f.endswith('.xlsx') and f not in inc_files]
+            pac_files = [f for f in archivos_en_raiz if f.endswith('.xlsx') and f not in [i for i in archivos_en_raiz if 'INC' in i.upper()]]
 
         if pac_files:
             file_pac = pac_files[0]
@@ -86,7 +86,6 @@ if not st.session_state.dict_pac:
             for sh in dict_pac:
                 dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
             
-            # Ubicar la hoja de Proyectos
             hoja_proyectos = 'Proyectos' if 'Proyectos' in dict_pac else list(dict_pac.keys())[0]
             
             if hoja_proyectos in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac[hoja_proyectos].columns:
@@ -104,23 +103,27 @@ if not st.session_state.dict_pac:
                             dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos)]
                             
             st.session_state.dict_pac = dict_pac
-    except Exception as e:
+    except Exception:
         pass
 
-# Sidebar: Navegación Principal
-st.sidebar.header("🎛️ Panel")
+# Sidebar: Navegación Principal (Orden exacto con las 3 opciones)
+st.sidebar.header("🎛️ Panel de Control")
 app_mode = st.sidebar.selectbox(
     "Navegación", 
-    ["Dashboard Principal", "Socios Comunitarios", "📁 Subir y Gestionar Nueva Información"]
+    [
+        "📊 Dashboard Principal", 
+        "🤝 Socios Comunitarios", 
+        "📁 Gestión y Actualización de Archivos"
+    ]
 )
 
 # -------------------------------------------------------------
 # OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
-if app_mode == "Dashboard Principal":
+if app_mode == "📊 Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    st.title("Información Proyectos VcM, UNIACC")
+    st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
         df_bd = st.session_state.df_bd
@@ -259,7 +262,7 @@ elif app_mode == "🤝 Socios Comunitarios":
         st.info(f"El archivo seleccionado no contiene una hoja 'Organizaciones'.")
 
 # -------------------------------------------------------------
-# OPCIÓN 3: SUBIR Y GESTIONAR NUEVA INFORMACIÓN
+# OPCIÓN 3: GESTIÓN Y ACTUALIZACIÓN DE ARCHIVOS
 # -------------------------------------------------------------
 else:
     st.title("📂 Gestión, Limpieza y Actualización de Archivos")
@@ -281,7 +284,6 @@ else:
                 hoja_p = 'Proyectos' if 'Proyectos' in dict_cargado else list(dict_cargado.keys())[0]
                 if hoja_p in dict_cargado and 'ESTADO DEL PROYECTO' in dict_cargado[hoja_p].columns:
                     df_p = dict_cargado[hoja_p]
-                    # Aplicar exclusión de Borrador y Cancelada
                     df_p = df_p[~df_p['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
                     dict_cargado[hoja_p] = df_p
                     ids_val = df_p['ID'].dropna().tolist() if 'ID' in df_p.columns else []
