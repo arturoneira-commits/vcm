@@ -172,13 +172,22 @@ if app_mode == "📊 Dashboard Principal":
         dict_inc = st.session_state.get('dict_inc', {})
         
         if dict_inc:
-            hoja_activa = st.selectbox("Seleccionar hoja a visualizar:", list(dict_inc.keys()))
-            df_inc_activa = dict_inc[hoja_activa]
+            # Tomar por defecto la hoja principal 'Incubadoras' o la primera disponible
+            hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
+            df_inc_activa = dict_inc[hoja_inc_nombre]
+            
+            # --- MÉTRICAS (RECUADROS): TOTAL DE PROYECTOS Y TOTAL DE FACULTADES ---
+            total_proyectos_inc = len(df_inc_activa)
+            col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
+            total_facultades_inc = df_inc_activa[col_fac_inc].nunique() if col_fac_inc else 0
+            
+            col_m1, col_m2 = st.columns(2)
+            col_m1.metric("📁 Total de Proyectos (Incubadoras)", total_proyectos_inc)
+            col_m2.metric("🏛️ Total de Facultades", total_facultades_inc)
             
             st.markdown("---")
             st.subheader("📈 Cantidad de Proyectos por Facultad Líder (Incubadoras)")
             
-            col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
             if col_fac_inc:
                 df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
                 df_fac_inc.columns = ['Facultad', 'Cantidad de Proyectos']
@@ -201,6 +210,7 @@ if app_mode == "📊 Dashboard Principal":
                 st.info("No se encontró una columna de facultad en esta hoja de Incubadoras.")
 
             st.markdown("---")
+            st.subheader("📋 Detalle de Incubadoras")
             st.dataframe(df_inc_activa, use_container_width=True)
         else:
             st.info("No hay datos cargados para Incubadoras.")
@@ -272,7 +282,6 @@ elif app_mode == "🤝 Socios Comunitarios":
                 suffixes=('', '_ppal')
             )
             
-            # --- MÉTRICAS (RECUADROS): TOTAL DE SOCIOS Y TOTAL DE FACULTADES ---
             total_socios = df_merged['ORGANIZACIÓN'].nunique() if 'ORGANIZACIÓN' in df_merged.columns else 0
             total_facultades = df_merged['FACULTAD LÍDER'].nunique() if 'FACULTAD LÍDER' in df_merged.columns else 0
             
