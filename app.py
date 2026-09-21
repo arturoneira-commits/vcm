@@ -6,13 +6,21 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Dirección General de Vinculación con el Medio - UNIACC", layout="wide", page_icon=None)
 
+# Control de autenticación en session_state (debe ir antes de renderizar la UI para aplicar el CSS del header)
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
+
 # Estilos CSS personalizados (Fondo blanco y tonos celeste/azul, sin iconos)
-st.markdown("""
+# Si NO es admin, ocultamos la barra superior de Streamlit (header con Share, GitHub, etc.)
+css_toolbar_oculta = "header {visibility: hidden;}" if not st.session_state.is_admin else "header {visibility: visible;}"
+
+st.markdown(f"""
     <style>
-    .main { background-color: #ffffff; }
-    .stApp { background-color: #ffffff; }
-    .stMetric { background-color: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-    .socio-card {
+    {css_toolbar_oculta}
+    .main {{ background-color: #ffffff; }}
+    .stApp {{ background-color: #ffffff; }}
+    .stMetric {{ background-color: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+    .socio-card {{
         background-color: #ffffff;
         border: 1px solid #cbd5e1;
         border-left: 5px solid #0284c7;
@@ -20,19 +28,19 @@ st.markdown("""
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-bottom: 20px;
-    }
-    .socio-title {
+    }}
+    .socio-title {{
         font-size: 18px;
         font-weight: bold;
         color: #0f172a;
         margin-bottom: 10px;
-    }
-    .socio-detail {
+    }}
+    .socio-detail {{
         font-size: 14px;
         color: #334155;
         margin-bottom: 5px;
-    }
-    .admin-badge {
+    }}
+    .admin-badge {{
         background-color: #e0f2fe;
         color: #0369a1;
         padding: 6px 12px;
@@ -42,13 +50,9 @@ st.markdown("""
         text-align: center;
         margin-bottom: 10px;
         border: 1px solid #bae6fd;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
-
-# Control de autenticación en session_state
-if 'is_admin' not in st.session_state:
-    st.session_state.is_admin = False
 
 # -------------------------------------------------------------
 # CARGA ESTÁTICA DESDE ARCHIVOS EN LA RAIZ (Persistente al refrescar)
@@ -153,7 +157,6 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 if app_mode == "Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    # Encabezado institucional actualizado
     st.markdown("### Dirección General de Vinculación con el Medio")
     st.markdown("#### Reporte de proyectos 2026")
     st.markdown("##### UNIACC")
@@ -290,7 +293,6 @@ if app_mode == "Dashboard Principal":
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "Socios Comunitarios":
-    # Encabezado institucional actualizado
     st.markdown("### Dirección General de Vinculación con el Medio")
     st.markdown("#### Reporte de proyectos 2026")
     st.markdown("##### UNIACC")
