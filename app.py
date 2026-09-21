@@ -53,19 +53,29 @@ if 'is_admin' not in st.session_state:
 # -------------------------------------------------------------
 archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
-# 1. Cargar BD Innovación
+# 1. Cargar BD Innovación (Detecta cualquier archivo que contenga 'innovacion' y filtra cancelados/borradores)
 df_bd = pd.DataFrame()
-bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
+bd_files = [f for f in archivos_en_raiz if 'innovacion' in f.lower() and f.endswith('.xlsx')]
 if bd_files:
     try:
-        df_bd = pd.read_excel(bd_files[0], sheet_name=0)
-        df_bd.columns = [str(c).strip() for c in df_bd.columns]
-    except Exception:
+        file_bd = bd_files[0]
+        xls_bd = pd.ExcelFile(file_bd)
+        hoja_bd = 'Hoja1' if 'Hoja1' in xls_bd.sheet_names else xls_bd.sheet_names[0]
+        df_bd_raw = pd.read_excel(file_bd, sheet_name=hoja_bd)
+        df_bd_raw.columns = [str(c).strip() for c in df_bd_raw.columns]
+        
+        if 'Estado' in df_bd_raw.columns:
+            df_bd = df_bd_raw[
+                ~df_bd_raw['Estado'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+            ].copy()
+        else:
+            df_bd = df_bd_raw
+    except Exception as e:
         pass
 
 # 2. Cargar Incubadoras (Filtrando Borrador y Cancelada)
 dict_inc = {}
-inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
+inc_files = [f for f in archivos_en_raiz if 'inc' in f.lower() and f.endswith('.xlsx') and 'innovacion' not in f.lower()]
 if inc_files:
     try:
         file_inc = inc_files[0]
@@ -82,9 +92,9 @@ if inc_files:
     except Exception:
         pass
 
-# 3. Cargar Proyectos PAC (Desde reporte_general_PAC_limpio.xlsx, filtrando Borrador y Cancelada)
+# 3. Cargar Proyectos PAC (Filtrando Borrador y Cancelada)
 df_pac = pd.DataFrame()
-pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')), None)
+pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'pac' in f.lower() and f.endswith('.xlsx')), None)
 if pac_file:
     try:
         df_pac_raw = pd.read_excel(pac_file, sheet_name=0)
@@ -116,7 +126,7 @@ else:
     with st.sidebar.expander("🔒 Acceso Administrador"):
         password_input = st.text_input("Contraseña:", type="password")
         if st.button("Ingresar"):
-            if password_input == "admin123":  # <-- PUEDES CAMBIAR TU CONTRASEÑA AQUÍ
+            if password_input == "admin123":
                 st.session_state.is_admin = True
                 st.success("¡Acceso concedido!")
                 st.rerun()
@@ -134,13 +144,18 @@ if app_mode == "📊 Dashboard Principal":
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
-        st.subheader("📊 Indicadores Clave - BD Innovación")
+        st.subheader("📊 Indicadores Clave - BD Innovación (Sin Canceladas)")
         if not df_bd.empty:
+            total_iniciativas = len(df_bd)
+            en_ejecucion = len(df_bd[df_bd['Estado'].str.lower() == 'en ejecución']) if 'Estado' in df_bd.columns else 0
+            finalizados = len(df_bd[df_bd['Estado'].str.lower() == 'finalizado']) if 'Estado' in df_bd.columns else 0
+            total_estudiantes = int(df_bd['Estudiantes'].sum()) if 'Estudiantes' in df_bd.columns else 0
+            
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Iniciativas", len(df_bd))
-            col2.metric("En Ejecución", len(df_bd[df_bd['Estado'].str.lower() == 'en ejecución']) if 'Estado' in df_bd.columns else 0)
-            col3.metric("Finalizados", len(df_bd[df_bd['Estado'].str.lower() == 'finalizado']) if 'Estado' in df_bd.columns else 0)
-            col4.metric("Estudiantes Totales", int(df_bd['Estudiantes'].sum()) if 'Estudiantes' in df_bd.columns else 0)
+            col1.metric("Total Iniciativas Válidas", total_iniciativas)
+            col2.metric("En Ejecución", en_ejecucion)
+            col3.metric("Finalizados", finalizados)
+            col4.metric("Estudiantes Totales", total_estudiantes)
             
             st.markdown("---")
             st.subheader("📈 Cantidad de Iniciativas por Facultad (BD Innovación)")
@@ -253,7 +268,7 @@ if app_mode == "📊 Dashboard Principal":
             st.subheader("📋 Detalle de Proyectos PAC")
             st.dataframe(df_pac, use_container_width=True)
         else:
-            st.info("No se encontró el archivo 'reporte_general_PAC_limpio.xlsx' en el repositorio.")
+            st.info("No hay datos cargados para Proyectos PAC.")
 
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
@@ -262,58 +277,60 @@ elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
     st.markdown("Extracción directa de organizaciones y facultades desde la estructura limpia.")
     
-    tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
+    tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras", "BD Innovación"], horizontal=True)
     st.markdown("---")
     
     if tipo_fuente == "Proyectos PAC":
         df_src = df_pac
-    else:
+    elif tipo_fuente == "Reporte General Incubadoras":
         hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
         df_src = dict_inc[hoja_inc] if hoja_inc else pd.DataFrame()
+    else:
+        df_src = df_bd
     
     if not df_src.empty:
-        col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower()), 'ORGANIZACIÓN')
-        col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), 'FACULTAD LÍDER')
-        col_id = next((c for c in df_src.columns if 'id' in c.lower()), 'ID')
-        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower() or 'iniciativa' in c.lower()), None)
+        col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower() or 'entidad' in c.lower()), None)
+        col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), None)
+        col_id = next((c for c in df_src.columns if 'id' in c.lower() or 'iniciativa' in c.lower()), None)
+        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower() or 'categoria' in c.lower() or 'modalidad' in c.lower()), None)
         
-        if col_org in df_src.columns and col_fac in df_src.columns:
+        if col_org and col_fac:
             df_org_clean = df_src.dropna(subset=[col_org]).copy()
             
             total_socios = df_org_clean[col_org].nunique()
             total_facultades = df_org_clean[col_fac].nunique()
             
             col_m1, col_m2 = st.columns(2)
-            col_m1.metric("🏢 Total de Socios Comunitarios", total_socios)
+            col_m1.metric("🏢 Total de Entidades / Socios Comunitarios", total_socios)
             col_m2.metric("🏛️ Total de Facultades Vinculadas", total_facultades)
             
             st.markdown("---")
-            st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
+            st.subheader("📈 Distribución de Entidades por Facultad")
             
             df_grafico = df_org_clean.dropna(subset=[col_fac, col_org]).groupby(col_fac)[col_org].nunique().reset_index()
-            df_grafico.columns = ['Facultad', 'Cantidad de Socios']
-            df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
+            df_grafico.columns = ['Facultad', 'Cantidad de Entidades']
+            df_grafico = df_grafico.sort_values(by='Cantidad de Entidades', ascending=True)
             
             if not df_grafico.empty:
                 fig = px.bar(
                     df_grafico, 
-                    x='Cantidad de Socios', 
+                    x='Cantidad de Entidades', 
                     y='Facultad', 
                     orientation='h',
-                    title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
-                    text='Cantidad de Socios',
-                    color='Cantidad de Socios',
+                    title=f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})",
+                    text='Cantidad de Entidades',
+                    color='Cantidad de Entidades',
                     color_continuous_scale='Greens'
                 )
-                fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
+                fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad")
                 st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("---")
-            st.subheader("🏢 Detalle por Socio Comunitario")
+            st.subheader("🏢 Detalle por Entidad / Socio Comunitario")
             
             socios_agrupados = df_org_clean.groupby(col_org).agg(
                 total_convenios=(col_org, 'count'),
-                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id in df_org_clean.columns else (col_org, lambda x: "N/A"),
+                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id else (col_org, lambda x: "N/A"),
                 facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
                 tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
             ).reset_index()
@@ -324,13 +341,13 @@ elif app_mode == "🤝 Socios Comunitarios":
                     st.markdown(f"""
                         <div class="socio-card">
                             <div class="socio-title">🏢 {row[col_org]}</div>
-                            <div class="socio-detail"><b>Cantidad de Proyectos / Convenios:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
+                            <div class="socio-detail"><b>Registros / Proyectos:</b> {row['total_convenios']}</div>
                             <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
-                            <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
+                            <div class="socio-detail"><b>Detalle / Categoría:</b> {row['tipos']}</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
-            st.warning("No se encontraron las columnas de organización o facultad en los datos.")
+            st.warning("No se encontraron las columnas de organización/entidad o facultad en los datos seleccionados.")
     else:
         st.info("No hay datos cargados para la fuente seleccionada.")
 
@@ -357,21 +374,19 @@ elif app_mode == "📁 Gestión y Actualización de Archivos" and st.session_sta
 
     st.markdown("---")
     st.subheader("📤 Subir Nuevo Archivo Estático")
-    dataset_choice = st.selectbox("Destino de la base de datos:", ["Proyectos PAC (reporte_general_PAC_limpio.xlsx)", "Reporte General Incubadoras", "BD Innovación"])
+    dataset_choice = st.selectbox("Destino de la base de datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     uploaded_file = st.file_uploader("Selecciona un nuevo archivo Excel (.xlsx)", type=["xlsx"])
     
     if uploaded_file is not None:
         if st.button("Guardar Estáticamente en el Sistema"):
             try:
-                # Definir nombre de guardado estático según selección
-                if "PAC" in dataset_choice:
-                    nombre_guardado = "reporte_general_PAC_limpio.xlsx"
+                if "Innovación" in dataset_choice:
+                    nombre_guardado = "bd_innovacion.xlsx"
                 elif "Incubadoras" in dataset_choice:
                     nombre_guardado = "reporte_general_incubadoras.xlsx"
                 else:
-                    nombre_guardado = "bd_innovacion.xlsx"
+                    nombre_guardado = "reporte_general_PAC_limpio.xlsx"
                 
-                # Guardar físicamente el archivo en la raíz para que sea permanente (estático)
                 with open(nombre_guardado, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 
