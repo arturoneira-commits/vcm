@@ -200,28 +200,19 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 # OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
+    st.title("Dirección General de Vinculación con el Medio")
+    
     # Cálculos Globales
     tot_pac = df_pac['ID'].nunique() if ('ID' in df_pac.columns and not df_pac.empty) else len(df_pac)
     hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
     tot_inc = len(dict_inc[hoja_inc_nombre]) if hoja_inc_nombre and hoja_inc_nombre in dict_inc else 0
     tot_bd = len(df_bd) if not df_bd.empty else 0
 
-    # Gráfico de tortas general de iniciativas
-    df_resumen_global = pd.DataFrame({
-        'Iniciativa': ['Proyectos PAC', 'Proyectos Incubadoras', 'Iniciativas Innovación'],
-        'Cantidad': [tot_pac, tot_inc, tot_bd]
-    })
-
-    fig_global = px.pie(
-        df_resumen_global, names='Iniciativa', values='Cantidad',
-        hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
-    )
-    fig_global = aplicar_estilo_powerbi_pie(fig_global, "Distribución General por Tipo de Iniciativa")
-    
-    # Mostramos el gráfico centrado
-    col_c1, col_c2, col_c3 = st.columns([1, 2, 1])
-    with col_c2:
-        st.plotly_chart(fig_global, use_container_width=True)
+    # Recuadros métricos por iniciativa en lugar del gráfico de tortas global
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("Proyectos PAC", tot_pac)
+    col_m2.metric("Proyectos Incubadoras", tot_inc)
+    col_m3.metric("Iniciativas Innovación", tot_bd)
 
     st.markdown("---")
     st.markdown("##### Filtrar Vista de Gráficos por Iniciativa")
