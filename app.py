@@ -53,7 +53,7 @@ if 'is_admin' not in st.session_state:
 # -------------------------------------------------------------
 archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
-# 1. Cargar BD Innovación (Detecta cualquier archivo que contenga 'innovacion' y filtra cancelados/borradores)
+# 1. Cargar BD Innovación
 df_bd = pd.DataFrame()
 bd_files = [f for f in archivos_en_raiz if 'innovacion' in f.lower() and f.endswith('.xlsx')]
 if bd_files:
@@ -70,11 +70,12 @@ if bd_files:
             ].copy()
         else:
             df_bd = df_bd_raw
-    except Exception as e:
+    except Exception:
         pass
 
-# 2. Cargar Incubadoras (Filtrando Borrador y Cancelada)
+# 2. Cargar Incubadoras (Leyendo pestañas principales y hoja de Organizaciones)
 dict_inc = {}
+df_inc_orgs = pd.DataFrame()
 inc_files = [f for f in archivos_en_raiz if 'inc' in f.lower() and f.endswith('.xlsx') and 'innovacion' not in f.lower()]
 if inc_files:
     try:
@@ -89,10 +90,20 @@ if inc_files:
             dict_inc[hoja_inc] = dict_inc[hoja_inc][
                 ~dict_inc[hoja_inc]['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
             ]
-    except Exception:
+        
+        # Cargar y cruzar organizaciones de incubadoras si existe la pestaña
+        if 'Organizaciones' in dict_inc and hoja_inc in dict_inc:
+            df_orgs_raw = dict_inc['Organizaciones']
+            valid_ids = dict_inc[hoja_inc]['ID'].dropna().tolist()
+            df_orgs_filtradas = df_orgs_raw[df_orgs_raw['ID'].isin(valid_ids)].copy()
+            
+            # Cruzar con la facultad del proyecto incubador
+            df_proyectos_info = dict_inc[hoja_inc][['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA']].copy()
+            df_inc_orgs = pd.merge(df_orgs_filtradas, df_proyectos_info, on='ID', how='inner', suffixes=('', '_proj'))
+    except Exception as e:
         pass
 
-# 3. Cargar Proyectos PAC (Filtrando Borrador y Cancelada)
+# 3. Cargar Proyectos PAC
 df_pac = pd.DataFrame()
 pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'pac' in f.lower() and f.endswith('.xlsx')), None)
 if pac_file:
@@ -275,81 +286,112 @@ if app_mode == "📊 Dashboard Principal":
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Extracción directa de organizaciones y facultades desde la estructura limpia.")
+    st.markdown("Extracción directa de organizaciones y facultades desde las estructuras limpias.")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras", "BD Innovación"], horizontal=True)
     st.markdown("---")
     
     if tipo_fuente == "Proyectos PAC":
         df_src = df_pac
-    elif tipo_fuente == "Reporte General Incubadoras":
-        hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
-        df_src = dict_inc[hoja_inc] if hoja_inc else pd.DataFrame()
-    else:
-        df_src = df_bd
-    
-    if not df_src.empty:
         col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower() or 'entidad' in c.lower()), None)
         col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), None)
-        col_id = next((c for c in df_src.columns if 'id' in c.lower() or 'iniciativa' in c.lower()), None)
-        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower() or 'categoria' in c.lower() or 'modalidad' in c.lower()), None)
+        col_id = next((c for c in df_src.columns if 'id' in c.lower()), None)
+        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower()), None)
         
-        if col_org and col_fac:
+        if not df_src.empty and col_org and col_fac:
             df_org_clean = df_src.dropna(subset=[col_org]).copy()
-            
-            total_socios = df_org_clean[col_org].nunique()
-            total_facultades = df_org_clean[col_fac].nunique()
-            
-            col_m1, col_m2 = st.columns(2)
-            col_m1.metric("🏢 Total de Entidades / Socios Comunitarios", total_socios)
-            col_m2.metric("🏛️ Total de Facultades Vinculadas", total_facultades)
-            
-            st.markdown("---")
-            st.subheader("📈 Distribución de Entidades por Facultad")
-            
-            df_grafico = df_org_clean.dropna(subset=[col_fac, col_org]).groupby(col_fac)[col_org].nunique().reset_index()
-            df_grafico.columns = ['Facultad', 'Cantidad de Entidades']
-            df_grafico = df_grafico.sort_values(by='Cantidad de Entidades', ascending=True)
-            
-            if not df_grafico.empty:
-                fig = px.bar(
-                    df_grafico, 
-                    x='Cantidad de Entidades', 
-                    y='Facultad', 
-                    orientation='h',
-                    title=f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})",
-                    text='Cantidad de Entidades',
-                    color='Cantidad de Entidades',
-                    color_continuous_scale='Greens'
-                )
-                fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad")
-                st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("🏢 Detalle por Entidad / Socio Comunitario")
-            
             socios_agrupados = df_org_clean.groupby(col_org).agg(
                 total_convenios=(col_org, 'count'),
                 codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id else (col_org, lambda x: "N/A"),
                 facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
                 tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
             ).reset_index()
-            
-            cols = st.columns(2)
-            for idx, row in socios_agrupados.iterrows():
-                with cols[idx % 2]:
-                    st.markdown(f"""
-                        <div class="socio-card">
-                            <div class="socio-title">🏢 {row[col_org]}</div>
-                            <div class="socio-detail"><b>Registros / Proyectos:</b> {row['total_convenios']}</div>
-                            <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
-                            <div class="socio-detail"><b>Detalle / Categoría:</b> {row['tipos']}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
         else:
-            st.warning("No se encontraron las columnas de organización/entidad o facultad en los datos seleccionados.")
+            socios_agrupados = pd.DataFrame()
+
+    elif tipo_fuente == "Reporte General Incubadoras":
+        # Usamos la tabla cruzada de la pestaña 'Organizaciones'
+        df_src = df_inc_orgs
+        if not df_src.empty:
+            col_org = 'ORGANIZACIÓN'
+            col_fac = 'FACULTAD LÍDER'
+            col_id = 'ID'
+            col_tipo = 'TIPO DE ORGANIZACIÓN'
+            
+            socios_agrupados = df_src.groupby(col_org).agg(
+                total_convenios=(col_org, 'count'),
+                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique()))
+            ).reset_index()
+        else:
+            socios_agrupados = pd.DataFrame()
+            
+    else: # BD Innovación
+        df_src = df_bd
+        col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower() or 'entidad' in c.lower()), None)
+        col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), None)
+        col_id = next((c for c in df_src.columns if 'iniciativa' in c.lower()), None)
+        col_tipo = next((c for c in df_src.columns if 'categoria' in c.lower()), None)
+        
+        if not df_src.empty and col_org and col_fac:
+            df_org_clean = df_src.dropna(subset=[col_org]).copy()
+            socios_agrupados = df_org_clean.groupby(col_org).agg(
+                total_convenios=(col_org, 'count'),
+                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id else (col_org, lambda x: "N/A"),
+                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
+            ).reset_index()
+        else:
+            socios_agrupados = pd.DataFrame()
+
+    if not socios_agrupados.empty:
+        total_socios = len(socios_agrupados)
+        total_facultades = socios_agrupados['facultades'].nunique()
+        
+        col_m1, col_m2 = st.columns(2)
+        col_m1.metric("🏢 Total de Entidades / Socios Comunitarios", total_socios)
+        col_m2.metric("🏛️ Total de Facultades Vinculadas", total_facultades)
+        
+        st.markdown("---")
+        st.subheader("📈 Distribución de Entidades por Facultad")
+        
+        # Desglosar por facultad para el gráfico
+        df_grafico = socios_agrupados.assign(facultades=socios_agrupados['facultades'].str.split(', ')).explode('facultades')
+        df_grafico = df_grafico.groupby('facultades')['total_convenios'].sum().reset_index()
+        df_grafico.columns = ['Facultad', 'Cantidad de Entidades']
+        df_grafico = df_grafico.sort_values(by='Cantidad de Entidades', ascending=True)
+        
+        if not df_grafico.empty:
+            fig = px.bar(
+                df_grafico, 
+                x='Cantidad de Entidades', 
+                y='Facultad', 
+                orientation='h',
+                title=f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})",
+                text='Cantidad de Entidades',
+                color='Cantidad de Entidades',
+                color_continuous_scale='Greens'
+            )
+            fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("🏢 Detalle por Entidad / Socio Comunitario")
+        
+        cols = st.columns(2)
+        for idx, row in socios_agrupados.iterrows():
+            with cols[idx % 2]:
+                st.markdown(f"""
+                    <div class="socio-card">
+                        <div class="socio-title">🏢 {row[col_org]}</div>
+                        <div class="socio-detail"><b>Registros / Proyectos:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
+                        <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
+                        <div class="socio-detail"><b>Tipo / Detalle:</b> {row['tipos']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
     else:
-        st.info("No hay datos cargados para la fuente seleccionada.")
+        st.info("No hay datos de organizaciones disponibles para la fuente seleccionada.")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: GESTIÓN, ELIMINACIÓN Y ACTUALIZACIÓN (SOLO ADMIN)
