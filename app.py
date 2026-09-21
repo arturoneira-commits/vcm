@@ -200,9 +200,6 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 # OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
-    st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("---")
-
     # Cálculos Globales
     tot_pac = df_pac['ID'].nunique() if ('ID' in df_pac.columns and not df_pac.empty) else len(df_pac)
     hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
@@ -365,11 +362,6 @@ if app_mode == "Dashboard Principal":
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "Socios Comunitarios":
-    st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("#### Reporte de proyectos 2026")
-    st.markdown("##### UNIACC")
-    st.markdown("---")
-    
     st.title("Red de Socios Comunitarios")
     st.markdown("Extracción directa de organizaciones y facultades, incluyendo el nombre del proyecto asociado.")
     
@@ -455,11 +447,6 @@ elif app_mode == "Socios Comunitarios":
 # OPCIÓN 3: GESTIÓN, ELIMINACIÓN Y ACTUALIZACIÓN (SOLO ADMIN)
 # -------------------------------------------------------------
 elif app_mode == "Gestión y Actualización de Archivos" and st.session_state.is_admin:
-    st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("#### Reporte de proyectos 2026")
-    st.markdown("##### UNIACC")
-    st.markdown("---")
-    
     st.title("Gestión, Limpieza y Actualización de Archivos")
     st.markdown("Administra los archivos almacenados estáticamente en el sistema.")
 
