@@ -6,7 +6,7 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
 
-# Estilos CSS personalizados para tarjetas
+# Estilos CSS personalizados
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -31,78 +31,99 @@ st.markdown("""
         color: #4b5563;
         margin-bottom: 5px;
     }
+    .admin-badge {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Inicializar estados en session_state
-if 'df_bd' not in st.session_state:
-    st.session_state.df_bd = pd.DataFrame()
-if 'dict_inc' not in st.session_state:
-    st.session_state.dict_inc = {}
-if 'df_pac' not in st.session_state:
-    st.session_state.df_pac = pd.DataFrame()
+# Control de autenticación en session_state
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
 
+# -------------------------------------------------------------
+# CARGA ESTÁTICA DESDE ARCHIVOS EN LA RAIZ (Persistente al refrescar)
+# -------------------------------------------------------------
 archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
 # 1. Cargar BD Innovación
-if len(st.session_state.df_bd) == 0:
+df_bd = pd.DataFrame()
+bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
+if bd_files:
     try:
-        bd_files = [f for f in archivos_en_raiz if 'INNOVACION' in f.upper() and f.endswith('.xlsx')]
-        if bd_files:
-            st.session_state.df_bd = pd.read_excel(bd_files[0], sheet_name=0)
-            st.session_state.df_bd.columns = [str(c).strip() for c in st.session_state.df_bd.columns]
+        df_bd = pd.read_excel(bd_files[0], sheet_name=0)
+        df_bd.columns = [str(c).strip() for c in df_bd.columns]
     except Exception:
         pass
 
 # 2. Cargar Incubadoras (Filtrando Borrador y Cancelada)
-if not st.session_state.dict_inc:
+dict_inc = {}
+inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
+if inc_files:
     try:
-        inc_files = [f for f in archivos_en_raiz if 'INC' in f.upper() and f.endswith('.xlsx')]
-        if inc_files:
-            file_inc = inc_files[0]
-            xls_inc = pd.ExcelFile(file_inc)
-            dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
-            for sh in dict_inc:
-                dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
-            
-            hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
-            if hoja_inc in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc[hoja_inc].columns:
-                dict_inc[hoja_inc] = dict_inc[hoja_inc][
-                    ~dict_inc[hoja_inc]['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
-                ]
-            st.session_state.dict_inc = dict_inc
+        file_inc = inc_files[0]
+        xls_inc = pd.ExcelFile(file_inc)
+        dict_inc = {sh: pd.read_excel(file_inc, sheet_name=sh) for sh in xls_inc.sheet_names}
+        for sh in dict_inc:
+            dict_inc[sh].columns = [str(c).strip() for c in dict_inc[sh].columns]
+        
+        hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
+        if hoja_inc in dict_inc and 'ESTADO DEL PROYECTO' in dict_inc[hoja_inc].columns:
+            dict_inc[hoja_inc] = dict_inc[hoja_inc][
+                ~dict_inc[hoja_inc]['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+            ]
     except Exception:
         pass
 
 # 3. Cargar Proyectos PAC (Desde reporte_general_PAC_limpio.xlsx, filtrando Borrador y Cancelada)
-if st.session_state.df_pac.empty:
+df_pac = pd.DataFrame()
+pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')), None)
+if pac_file:
     try:
-        pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')), None)
+        df_pac_raw = pd.read_excel(pac_file, sheet_name=0)
+        df_pac_raw.columns = [str(c).strip() for c in df_pac_raw.columns]
         
-        if pac_file:
-            df_pac_raw = pd.read_excel(pac_file, sheet_name=0)
-            df_pac_raw.columns = [str(c).strip() for c in df_pac_raw.columns]
-            
-            if 'ESTADO DEL PROYECTO' in df_pac_raw.columns:
-                df_pac_limpio = df_pac_raw[
-                    ~df_pac_raw['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
-                ].copy()
-                st.session_state.df_pac = df_pac_limpio
-            else:
-                st.session_state.df_pac = df_pac_raw
+        if 'ESTADO DEL PROYECTO' in df_pac_raw.columns:
+            df_pac = df_pac_raw[
+                ~df_pac_raw['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+            ].copy()
+        else:
+            df_pac = df_pac_raw
     except Exception:
         pass
 
-# Sidebar: Navegación Principal
-st.sidebar.header("🎛️ Panel de Control")
-app_mode = st.sidebar.selectbox(
-    "Navegación", 
-    [
-        "📊 Dashboard Principal", 
-        "🤝 Socios Comunitarios", 
-        "📁 Gestión y Actualización de Archivos"
-    ]
-)
+# -------------------------------------------------------------
+# AUTENTICACIÓN Y PANEL DE CONTROL (SIDEBAR)
+# -------------------------------------------------------------
+st.sidebar.header("🎛️ Navegación")
+
+opciones_menu = ["📊 Dashboard Principal", "🤝 Socios Comunitarios"]
+
+if st.session_state.is_admin:
+    st.sidebar.markdown('<div class="admin-badge">🔓 Modo Administrador Activo</div>', unsafe_allow_html=True)
+    opciones_menu.append("📁 Gestión y Actualización de Archivos")
+    if st.sidebar.button("Cerrar Sesión de Admin"):
+        st.session_state.is_admin = False
+        st.rerun()
+else:
+    with st.sidebar.expander("🔒 Acceso Administrador"):
+        password_input = st.text_input("Contraseña:", type="password")
+        if st.button("Ingresar"):
+            if password_input == "admin123":  # <-- PUEDES CAMBIAR TU CONTRASEÑA AQUÍ
+                st.session_state.is_admin = True
+                st.success("¡Acceso concedido!")
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta")
+
+app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 
 # -------------------------------------------------------------
 # OPCIÓN 1: DASHBOARD PRINCIPAL
@@ -113,7 +134,6 @@ if app_mode == "📊 Dashboard Principal":
     st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
-        df_bd = st.session_state.df_bd
         st.subheader("📊 Indicadores Clave - BD Innovación")
         if not df_bd.empty:
             col1, col2, col3, col4 = st.columns(4)
@@ -155,8 +175,6 @@ if app_mode == "📊 Dashboard Principal":
 
     elif dataset_choice == "Reporte General Incubadoras":
         st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
-        dict_inc = st.session_state.get('dict_inc', {})
-        
         if dict_inc:
             hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
             df_inc_activa = dict_inc[hoja_inc_nombre]
@@ -201,10 +219,7 @@ if app_mode == "📊 Dashboard Principal":
 
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
-        df_pac = st.session_state.get('df_pac', pd.DataFrame())
-        
         if not df_pac.empty:
-            # Si hay proyectos repetidos por ID o por organización, contamos proyectos únicos por ID
             total_proyectos_pac = df_pac['ID'].nunique() if 'ID' in df_pac.columns else len(df_pac)
             total_estudiantes = int(df_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_pac.columns else 0
             
@@ -215,7 +230,6 @@ if app_mode == "📊 Dashboard Principal":
             st.markdown("---")
             st.subheader("📈 Cantidad de Proyectos PAC por Facultad Líder")
             if 'FACULTAD LÍDER' in df_pac.columns:
-                # Agrupamos por ID y Facultad para contar cada proyecto una sola vez
                 df_proyectos_unicos = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
                 df_fac_pac = df_proyectos_unicos['FACULTAD LÍDER'].value_counts().reset_index()
                 df_fac_pac.columns = ['Facultad', 'Cantidad de Proyectos']
@@ -246,15 +260,14 @@ if app_mode == "📊 Dashboard Principal":
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Extracción directa de organizaciones y facultades desde la nueva estructura (filtrando borradores y canceladas).")
+    st.markdown("Extracción directa de organizaciones y facultades desde la estructura limpia.")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
     if tipo_fuente == "Proyectos PAC":
-        df_src = st.session_state.get('df_pac', pd.DataFrame())
+        df_src = df_pac
     else:
-        dict_inc = st.session_state.get('dict_inc', {})
         hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
         df_src = dict_inc[hoja_inc] if hoja_inc else pd.DataFrame()
     
@@ -322,34 +335,46 @@ elif app_mode == "🤝 Socios Comunitarios":
         st.info("No hay datos cargados para la fuente seleccionada.")
 
 # -------------------------------------------------------------
-# OPCIÓN 3: GESTIÓN Y ACTUALIZACIÓN DE ARCHIVOS
+# OPCIÓN 3: GESTIÓN, ELIMINACIÓN Y ACTUALIZACIÓN (SOLO ADMIN)
 # -------------------------------------------------------------
-else:
+elif app_mode == "📁 Gestión y Actualización de Archivos" and st.session_state.is_admin:
     st.title("📂 Gestión, Limpieza y Actualización de Archivos")
-    st.markdown("Sube nuevos archivos Excel para actualizar las bases de datos del sistema.")
+    st.markdown("Administra los archivos almacenados estáticamente en el sistema.")
 
-    dataset_choice = st.sidebar.radio("Seleccionar Base de Datos a Actualizar:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
-    uploaded_file = st.file_uploader("Selecciona un archivo Excel (.xlsx)", type=["xlsx"])
+    st.subheader("🗑️ Selector para Eliminar Archivos Existentes")
+    archivos_excel_actuales = [f for f in os.listdir('.') if f.endswith('.xlsx')]
+    
+    if archivos_excel_actuales:
+        archivo_a_borrar = st.selectbox("Selecciona el archivo que deseas eliminar para reemplazarlo:", archivos_excel_actuales)
+        if st.button("Eliminar Archivo Seleccionado", type="primary"):
+            try:
+                os.remove(archivo_a_borrar)
+                st.success(f"¡El archivo '{archivo_a_borrar}' ha sido eliminado correctamente! Recarga la página para ver los cambios.")
+            except Exception as e:
+                st.error(f"No se pudo eliminar el archivo: {e}")
+    else:
+        st.info("No hay archivos Excel en la raíz actualmente.")
+
+    st.markdown("---")
+    st.subheader("📤 Subir Nuevo Archivo Estático")
+    dataset_choice = st.selectbox("Destino de la base de datos:", ["Proyectos PAC (reporte_general_PAC_limpio.xlsx)", "Reporte General Incubadoras", "BD Innovación"])
+    uploaded_file = st.file_uploader("Selecciona un nuevo archivo Excel (.xlsx)", type=["xlsx"])
     
     if uploaded_file is not None:
-        try:
-            xls_subido = pd.ExcelFile(uploaded_file)
-            st.success(f"¡Archivo detectado! Hojas disponibles: {xls_subido.sheet_names}")
-            
-            if st.button("Procesar y Guardar con Limpieza Automática"):
-                df_subido = pd.read_excel(uploaded_file, sheet_name=0)
-                df_subido.columns = [str(c).strip() for c in df_subido.columns]
-                
-                if 'ESTADO DEL PROYECTO' in df_subido.columns:
-                    df_subido = df_subido[~df_subido['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
-
-                if dataset_choice == "BD Innovación":
-                    st.session_state.df_bd = df_subido
-                elif dataset_choice == "Reporte General Incubadoras":
-                    st.session_state.dict_inc = {xls_subido.sheet_names[0]: df_subido}
+        if st.button("Guardar Estáticamente en el Sistema"):
+            try:
+                # Definir nombre de guardado estático según selección
+                if "PAC" in dataset_choice:
+                    nombre_guardado = "reporte_general_PAC_limpio.xlsx"
+                elif "Incubadoras" in dataset_choice:
+                    nombre_guardado = "reporte_general_incubadoras.xlsx"
                 else:
-                    st.session_state.df_pac = df_subido
-                    
-                st.success("¡Base de datos procesada y guardada filtrando Borradores y Canceladas!")
-        except Exception as e:
-            st.error(f"Error al procesar el archivo: {e}")
+                    nombre_guardado = "bd_innovacion.xlsx"
+                
+                # Guardar físicamente el archivo en la raíz para que sea permanente (estático)
+                with open(nombre_guardado, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                st.success(f"¡Archivo guardado estáticamente como '{nombre_guardado}'! La información ya es permanente y no se borrará al refrescar. Recarga la página.")
+            except Exception as e:
+                st.error(f"Error al guardar el archivo: {e}")
