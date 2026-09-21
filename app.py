@@ -10,35 +10,34 @@ st.set_page_config(page_title="Dirección General de Vinculación con el Medio -
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Estilos CSS personalizados (Fondo blanco y tonos celeste/azul, sin iconos)
-# Si NO es admin, ocultamos la barra superior de Streamlit (header con Share, GitHub, etc.)
+# Estilos CSS personalizados (Fondo blanco y tonos corporativos limpios, sin iconos si no es admin)
 css_toolbar_oculta = "header {visibility: hidden;}" if not st.session_state.is_admin else "header {visibility: visible;}"
 
 st.markdown(f"""
     <style>
     {css_toolbar_oculta}
-    .main {{ background-color: #ffffff; }}
-    .stApp {{ background-color: #ffffff; }}
-    .stMetric {{ background-color: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+    .main {{ background-color: #f8fafc; }}
+    .stApp {{ background-color: #f8fafc; }}
+    .stMetric {{ background-color: #ffffff; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }}
     .socio-card {{
         background-color: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-left: 5px solid #0284c7;
+        border: 1px solid #e2e8f0;
+        border-left: 5px solid #004b87;
         padding: 20px;
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         margin-bottom: 20px;
     }}
     .socio-title {{
         font-size: 18px;
         font-weight: bold;
-        color: #0f172a;
+        color: #1e293b;
         margin-bottom: 10px;
     }}
     .socio-detail {{
         font-size: 14px;
-        color: #334155;
-        margin-bottom: 5px;
+        color: #475569;
+        margin-bottom: 6px;
     }}
     .admin-badge {{
         background-color: #e0f2fe;
@@ -55,7 +54,51 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# CARGA ESTÁTICA DESDE ARCHIVOS EN LA RAIZ (Persistente al refrescar)
+# FUNCIÓN AUXILIAR PARA ESTILOS PROFESIONALES EN PLOTLY (TIPO POWER BI)
+# -------------------------------------------------------------
+def aplicar_estilo_powerbi(fig, titulo=""):
+    fig.update_layout(
+        title=dict(
+            text=titulo,
+            font=dict(size=16, color="#1e293b", family="Segoe UI, sans-serif"),
+            x=0.02,
+            y=0.95
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Segoe UI, sans-serif", color="#334155", size=12),
+        margin=dict(t=50, b=30, l=20, r=20),
+        xaxis=dict(
+            showgrid=True,
+            gridcolor='#f1f5f9',
+            zeroline=False,
+            showline=True,
+            linewidth=1,
+            linecolor='#cbd5e1'
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showline=True,
+            linewidth=1,
+            linecolor='#cbd5e1'
+        ),
+        hoverlabel=dict(
+            bgcolor="#ffffff",
+            font_size=13,
+            font_family="Segoe UI, sans-serif"
+        )
+    )
+    # Dar un toque profesional a las barras
+    fig.update_traces(
+        marker_line_color='#002855',
+        marker_line_width=1.5,
+        opacity=0.9
+    )
+    return fig
+
+# -------------------------------------------------------------
+# CARGA ESTÁTICA DESDE ARCHIVOS EN LA RAIZ
 # -------------------------------------------------------------
 archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
@@ -79,7 +122,7 @@ if bd_files:
     except Exception:
         pass
 
-# 2. Cargar Incubadoras (Leyendo pestañas principales y hoja de Organizaciones)
+# 2. Cargar Incubadoras
 dict_inc = {}
 df_inc_orgs = pd.DataFrame()
 inc_files = [f for f in archivos_en_raiz if 'inc' in f.lower() and f.endswith('.xlsx') and 'innovacion' not in f.lower()]
@@ -97,13 +140,11 @@ if inc_files:
                 ~dict_inc[hoja_inc]['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
             ]
         
-        # Cargar y cruzar organizaciones de incubadoras si existe la pestaña
         if 'Organizaciones' in dict_inc and hoja_inc in dict_inc:
             df_orgs_raw = dict_inc['Organizaciones']
             valid_ids = dict_inc[hoja_inc]['ID'].dropna().tolist()
             df_orgs_filtradas = df_orgs_raw[df_orgs_raw['ID'].isin(valid_ids)].copy()
             
-            # Buscamos columnas posibles para el nombre del proyecto en incubadoras
             col_nombre_inc = next((c for c in dict_inc[hoja_inc].columns if any(k in c.lower() for k in ['nombre', 'proyecto', 'iniciativa', 'titulo'])), 'ID')
             df_proyectos_info = dict_inc[hoja_inc][['ID', 'FACULTAD LÍDER', col_nombre_inc]].copy()
             df_proyectos_info.columns = ['ID', 'FACULTAD LÍDER', 'NOMBRE_PROYECTO']
@@ -195,12 +236,11 @@ if app_mode == "Dashboard Principal":
                         x='Cantidad de Iniciativas',
                         y='Facultad',
                         orientation='h',
-                        title="Iniciativas de Innovación por Facultad",
                         text='Cantidad de Iniciativas',
                         color='Cantidad de Iniciativas',
                         color_continuous_scale='Blues'
                     )
-                    fig_bd.update_layout(xaxis_title="Número de Iniciativas", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
+                    fig_bd = aplicar_estilo_powerbi(fig_bd, "Iniciativas de Innovación por Facultad")
                     st.plotly_chart(fig_bd, use_container_width=True)
             else:
                 st.info("No se encontró una columna de facultad en BD Innovación.")
@@ -239,12 +279,11 @@ if app_mode == "Dashboard Principal":
                         x='Cantidad de Proyectos',
                         y='Facultad',
                         orientation='h',
-                        title="Proyectos de Incubación por Facultad Líder",
                         text='Cantidad de Proyectos',
                         color='Cantidad de Proyectos',
                         color_continuous_scale='Blues'
                     )
-                    fig_inc.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
+                    fig_inc = aplicar_estilo_powerbi(fig_inc, "Proyectos de Incubación por Facultad Líder")
                     st.plotly_chart(fig_inc, use_container_width=True)
             else:
                 st.info("No se encontró una columna de facultad en esta hoja de Incubadoras.")
@@ -279,12 +318,11 @@ if app_mode == "Dashboard Principal":
                         x='Cantidad de Proyectos',
                         y='Facultad',
                         orientation='h',
-                        title="Proyectos PAC Activos por Facultad Líder",
                         text='Cantidad de Proyectos',
                         color='Cantidad de Proyectos',
                         color_continuous_scale='Blues'
                     )
-                    fig_pac.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
+                    fig_pac = aplicar_estilo_powerbi(fig_pac, "Proyectos PAC Activos por Facultad Líder")
                     st.plotly_chart(fig_pac, use_container_width=True)
             
             st.markdown("---")
@@ -365,12 +403,11 @@ elif app_mode == "Socios Comunitarios":
                 x='Cantidad de Entidades', 
                 y='Facultad', 
                 orientation='h',
-                title=f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})",
                 text='Cantidad de Entidades',
                 color='Cantidad de Entidades',
                 color_continuous_scale='Blues'
             )
-            fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
+            fig = aplicar_estilo_powerbi(fig, f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})")
             st.plotly_chart(fig, use_container_width=True)
         
         st.markdown("---")
