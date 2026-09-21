@@ -458,9 +458,7 @@ elif app_mode == "Socios Comunitarios":
 # -------------------------------------------------------------
 elif app_mode == "Gestión y Actualización de Archivos" and st.session_state.is_admin:
     st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("#### Reporte de proyectos 2026")
-    st.markdown("##### UNIACC")
-    st.markdown("---")
+       st.markdown("---")
     
     st.title("Gestión, Limpieza y Actualización de Archivos")
     st.markdown("Administra los archivos almacenados estáticamente en el sistema.")
