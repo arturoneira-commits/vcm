@@ -103,7 +103,11 @@ if inc_files:
             valid_ids = dict_inc[hoja_inc]['ID'].dropna().tolist()
             df_orgs_filtradas = df_orgs_raw[df_orgs_raw['ID'].isin(valid_ids)].copy()
             
-            df_proyectos_info = dict_inc[hoja_inc][['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA']].copy()
+            # Buscamos columnas posibles para el nombre del proyecto en incubadoras
+            col_nombre_inc = next((c for c in dict_inc[hoja_inc].columns if any(k in c.lower() for k in ['nombre', 'proyecto', 'iniciativa', 'titulo'])), 'ID')
+            df_proyectos_info = dict_inc[hoja_inc][['ID', 'FACULTAD LÍDER', col_nombre_inc]].copy()
+            df_proyectos_info.columns = ['ID', 'FACULTAD LÍDER', 'NOMBRE_PROYECTO']
+            
             df_inc_orgs = pd.merge(df_orgs_filtradas, df_proyectos_info, on='ID', how='inner', suffixes=('', '_proj'))
     except Exception:
         pass
@@ -309,7 +313,7 @@ elif app_mode == "Socios Comunitarios":
         col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower() or 'entidad' in c.lower()), None)
         col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), None)
         col_id = next((c for c in df_src.columns if 'id' in c.lower()), None)
-        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower()), None)
+        col_nom_proy = next((c for c in df_src.columns if any(k in c.lower() for k in ['nombre', 'proyecto', 'iniciativa', 'titulo'])), None)
         
         if not df_src.empty and col_org and col_fac:
             df_org_clean = df_src.dropna(subset=[col_org]).copy()
@@ -317,7 +321,7 @@ elif app_mode == "Socios Comunitarios":
                 total_convenios=(col_org, 'count'),
                 codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id else (col_org, lambda x: "N/A"),
                 facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
-                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
+                nombres_proyectos=(col_nom_proy, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_nom_proy else (col_org, lambda x: "N/A")
             ).reset_index()
         else:
             socios_agrupados = pd.DataFrame()
@@ -328,13 +332,13 @@ elif app_mode == "Socios Comunitarios":
             col_org = 'ORGANIZACIÓN'
             col_fac = 'FACULTAD LÍDER'
             col_id = 'ID'
-            col_tipo = 'TIPO DE ORGANIZACIÓN'
+            col_nom_proy = 'NOMBRE_PROYECTO' if 'NOMBRE_PROYECTO' in df_src.columns else 'ID'
             
             socios_agrupados = df_src.groupby(col_org).agg(
                 total_convenios=(col_org, 'count'),
                 codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())),
                 facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
-                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique()))
+                nombres_proyectos=(col_nom_proy, lambda x: ", ".join(x.dropna().astype(str).unique()))
             ).reset_index()
         else:
             socios_agrupados = pd.DataFrame()
@@ -380,7 +384,7 @@ elif app_mode == "Socios Comunitarios":
                         <div class="socio-title">{row[col_org]}</div>
                         <div class="socio-detail"><b>Registros / Proyectos:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
                         <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
-                        <div class="socio-detail"><b>Tipo / Detalle:</b> {row['tipos']}</div>
+                        <div class="socio-detail"><b>Nombre del Proyecto:</b> {row['nombres_proyectos']}</div>
                     </div>
                 """, unsafe_allow_html=True)
     else:
