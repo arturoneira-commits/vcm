@@ -4,7 +4,7 @@ import plotly.express as px
 import os
 
 # Configuración de la página
-st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Dirección General de Vinculación con el Medio - UNIACC", layout="wide", page_icon=None)
 
 # Estilos CSS personalizados (Fondo blanco y tonos celeste/azul, sin iconos)
 st.markdown("""
@@ -153,7 +153,11 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 if app_mode == "Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    st.title("Dashboard de Iniciativas e Incubación de Proyectos")
+    # Encabezado institucional actualizado
+    st.markdown("### Dirección General de Vinculación con el Medio")
+    st.markdown("#### Reporte de proyectos 2026")
+    st.markdown("##### UNIACC")
+    st.markdown("---")
 
     if dataset_choice == "BD Innovación":
         st.subheader("Indicadores Clave - BD Innovación (Sin Canceladas)")
@@ -286,10 +290,15 @@ if app_mode == "Dashboard Principal":
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "Socios Comunitarios":
+    # Encabezado institucional actualizado
+    st.markdown("### Dirección General de Vinculación con el Medio")
+    st.markdown("#### Reporte de proyectos 2026")
+    st.markdown("##### UNIACC")
+    st.markdown("---")
+    
     st.title("Red de Socios Comunitarios")
     st.markdown("Extracción directa de organizaciones y facultades desde las estructuras limpias.")
     
-    # Menú origen sin BD Innovación
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
@@ -379,6 +388,11 @@ elif app_mode == "Socios Comunitarios":
 # OPCIÓN 3: GESTIÓN, ELIMINACIÓN Y ACTUALIZACIÓN (SOLO ADMIN)
 # -------------------------------------------------------------
 elif app_mode == "Gestión y Actualización de Archivos" and st.session_state.is_admin:
+    st.markdown("### Dirección General de Vinculación con el Medio")
+    st.markdown("#### Reporte de proyectos 2026")
+    st.markdown("##### UNIACC")
+    st.markdown("---")
+    
     st.title("Gestión, Limpieza y Actualización de Archivos")
     st.markdown("Administra los archivos almacenados estáticamente en el sistema.")
 
