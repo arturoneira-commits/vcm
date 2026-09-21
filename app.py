@@ -172,11 +172,9 @@ if app_mode == "📊 Dashboard Principal":
         dict_inc = st.session_state.get('dict_inc', {})
         
         if dict_inc:
-            # Tomar por defecto la hoja principal 'Incubadoras' o la primera disponible
             hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
             df_inc_activa = dict_inc[hoja_inc_nombre]
             
-            # --- MÉTRICAS (RECUADROS): TOTAL DE PROYECTOS Y TOTAL DE FACULTADES ---
             total_proyectos_inc = len(df_inc_activa)
             col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
             total_facultades_inc = df_inc_activa[col_fac_inc].nunique() if col_fac_inc else 0
@@ -259,7 +257,7 @@ if app_mode == "📊 Dashboard Principal":
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Cruce automatizado entre la hoja **Organizaciones** y la hoja principal **Proyectos** (filtrando borradores y canceladas).")
+    st.markdown("Cruce automatizado entre la hoja de **Organizaciones** (columna ORGANIZACIÓN) y la hoja principal **Proyectos** por ID (filtrando borradores y canceladas).")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
@@ -271,9 +269,12 @@ elif app_mode == "🤝 Socios Comunitarios":
         hoja_ppal_nombre = 'Proyectos' if 'Proyectos' in dict_actual else list(dict_actual.keys())[0]
         df_ppal = dict_actual[hoja_ppal_nombre].copy()
         
-        df_org = df_org.dropna(subset=['ORGANIZACIÓN']) if 'ORGANIZACIÓN' in df_org.columns else df_org
+        # Limpiar filas vacías en la columna ORGANIZACIÓN
+        col_org = next((c for c in df_org.columns if 'organización' in c.lower() or 'organizacion' in c.lower()), 'ORGANIZACIÓN')
+        df_org = df_org.dropna(subset=[col_org])
         
         if not df_org.empty and 'ID' in df_org.columns and 'ID' in df_ppal.columns:
+            # Cruce (merge) de Organizaciones con Proyectos usando el ID
             df_merged = pd.merge(
                 df_org,
                 df_ppal[['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA'] if 'FACULTAD LÍDER' in df_ppal.columns else ['ID']],
@@ -282,8 +283,10 @@ elif app_mode == "🤝 Socios Comunitarios":
                 suffixes=('', '_ppal')
             )
             
-            total_socios = df_merged['ORGANIZACIÓN'].nunique() if 'ORGANIZACIÓN' in df_merged.columns else 0
-            total_facultades = df_merged['FACULTAD LÍDER'].nunique() if 'FACULTAD LÍDER' in df_merged.columns else 0
+            col_fac_final = 'FACULTAD LÍDER' if 'FACULTAD LÍDER' in df_merged.columns else next((c for c in df_merged.columns if 'facultad' in c.lower()), None)
+            
+            total_socios = df_merged[col_org].nunique()
+            total_facultades = df_merged[col_fac_final].nunique() if col_fac_final else 0
             
             col_m1, col_m2 = st.columns(2)
             col_m1.metric("🏢 Total de Socios Comunitarios", total_socios)
@@ -292,8 +295,8 @@ elif app_mode == "🤝 Socios Comunitarios":
             st.markdown("---")
             st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
             
-            if 'FACULTAD LÍDER' in df_merged.columns and 'ORGANIZACIÓN' in df_merged.columns:
-                df_grafico = df_merged.dropna(subset=['FACULTAD LÍDER', 'ORGANIZACIÓN']).groupby('FACULTAD LÍDER')['ORGANIZACIÓN'].nunique().reset_index()
+            if col_fac_final:
+                df_grafico = df_merged.dropna(subset=[col_fac_final, col_org]).groupby(col_fac_final)[col_org].nunique().reset_index()
                 df_grafico.columns = ['Facultad', 'Cantidad de Socios']
                 df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
                 
@@ -314,11 +317,11 @@ elif app_mode == "🤝 Socios Comunitarios":
             st.markdown("---")
             st.subheader("🏢 Detalle por Socio Comunitario")
             
-            socios_agrupados = df_merged.groupby('ORGANIZACIÓN').agg(
-                total_convenios=('ORGANIZACIÓN', 'count'),
+            socios_agrupados = df_merged.groupby(col_org).agg(
+                total_convenios=(col_org, 'count'),
                 codigos_ids=('ID', lambda x: ", ".join(x.dropna().astype(str).unique())),
-                facultades=('FACULTAD LÍDER', lambda x: ", ".join(x.dropna().astype(str).unique())) if 'FACULTAD LÍDER' in df_merged.columns else ('ID', lambda x: "N/A"),
-                tipos=('TIPO DE INICIATIVA', lambda x: ", ".join(x.dropna().astype(str).unique())) if 'TIPO DE INICIATIVA' in df_merged.columns else ('ID', lambda x: "N/A")
+                facultades=(col_fac_final, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_fac_final else (col_org, lambda x: "N/A"),
+                tipos=('TIPO DE INICIATIVA', lambda x: ", ".join(x.dropna().astype(str).unique())) if 'TIPO DE INICIATIVA' in df_merged.columns else (col_org, lambda x: "N/A")
             ).reset_index()
             
             cols = st.columns(2)
@@ -326,7 +329,7 @@ elif app_mode == "🤝 Socios Comunitarios":
                 with cols[idx % 2]:
                     st.markdown(f"""
                         <div class="socio-card">
-                            <div class="socio-title">🏢 {row['ORGANIZACIÓN']}</div>
+                            <div class="socio-title">🏢 {row[col_org]}</div>
                             <div class="socio-detail"><b>Cantidad de Proyectos / Convenios:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
                             <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
                             <div class="socio-detail"><b>Tipo de Iniciativa:</b> {row['tipos']}</div>
@@ -362,11 +365,6 @@ else:
                     df_p = dict_cargado[hoja_p]
                     df_p = df_p[~df_p['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
                     dict_cargado[hoja_p] = df_p
-                    ids_val = df_p['ID'].dropna().tolist() if 'ID' in df_p.columns else []
-                    if ids_val:
-                        for sh in dict_cargado:
-                            if sh != hoja_p and 'ID' in dict_cargado[sh].columns:
-                                dict_cargado[sh] = dict_cargado[sh][dict_cargado[sh]['ID'].isin(ids_val)]
 
                 if dataset_choice == "BD Innovación":
                     st.session_state.df_bd = list(dict_cargado.values())[0]
