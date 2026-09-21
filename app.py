@@ -323,7 +323,7 @@ st.markdown("""
     <div class="header-container">
         <div>
             <div class="header-title">Dirección General de Vinculación con el Medio</div>
-            <div class="header-subtitle">Universidad UNIACC — Panel Institucional de Control y Gestión</div>
+            <div class="header-subtitle">Universidad UNIACC — Panel Institucional</div>
         </div>
     </div>
 """, unsafe_allow_html=True)
