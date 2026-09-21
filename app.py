@@ -201,28 +201,38 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
     st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("#### Reporte de proyectos 2026 - Resumen General por Iniciativa")
-    st.markdown("##### UNIACC")
     st.markdown("---")
 
-    # Métricas Globales Superiores
+    # Cálculos Globales
     tot_pac = df_pac['ID'].nunique() if ('ID' in df_pac.columns and not df_pac.empty) else len(df_pac)
     hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
     tot_inc = len(dict_inc[hoja_inc_nombre]) if hoja_inc_nombre and hoja_inc_nombre in dict_inc else 0
     tot_bd = len(df_bd) if not df_bd.empty else 0
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Proyectos PAC", tot_pac)
-    m2.metric("Total Proyectos Incubadoras", tot_inc)
-    m3.metric("Total Iniciativas Innovación", tot_bd)
+    # Gráfico de tortas general de iniciativas
+    df_resumen_global = pd.DataFrame({
+        'Iniciativa': ['Proyectos PAC', 'Proyectos Incubadoras', 'Iniciativas Innovación'],
+        'Cantidad': [tot_pac, tot_inc, tot_bd]
+    })
+
+    fig_global = px.pie(
+        df_resumen_global, names='Iniciativa', values='Cantidad',
+        hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
+    )
+    fig_global = aplicar_estilo_powerbi_pie(fig_global, "Distribución General por Tipo de Iniciativa")
+    
+    # Mostramos el gráfico centrado
+    col_c1, col_c2, col_c3 = st.columns([1, 2, 1])
+    with col_c2:
+        st.plotly_chart(fig_global, use_container_width=True)
 
     st.markdown("---")
     st.markdown("##### Filtrar Vista de Gráficos por Iniciativa")
 
-    # Pestañas de iniciativa (La primera pestaña es "Todos" y será el foco principal por defecto)
+    # Pestañas de iniciativa
     tab_todos, tab_pac, tab_inc, tab_inn = st.tabs(["Todos", "PAC", "Incubadoras", "Innovación"])
 
-    # --- PESTAÑA: TODOS (Muestra los 3 gráficos lado a lado) ---
+    # --- PESTAÑA: TODOS ---
     with tab_todos:
         st.subheader("Distribución Porcentual de Proyectos por Facultad (Todas las Iniciativas)")
         col_g1, col_g2, col_g3 = st.columns(3)
