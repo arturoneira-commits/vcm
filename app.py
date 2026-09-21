@@ -60,26 +60,26 @@ def aplicar_estilo_powerbi_pie(fig, titulo=""):
     fig.update_layout(
         title=dict(
             text=titulo,
-            font=dict(size=14, color="#1e293b", family="Segoe UI, sans-serif"),
+            font=dict(size=15, color="#1e293b", family="Segoe UI, sans-serif"),
             x=0.5,
             xanchor='center',
             y=0.95
         ),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Segoe UI, sans-serif", color="#334155", size=11),
-        margin=dict(t=50, b=20, l=10, r=10),
+        font=dict(family="Segoe UI, sans-serif", color="#334155", size=12),
+        margin=dict(t=60, b=30, l=20, r=20),
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.2,
+            y=-0.25,
             xanchor="center",
             x=0.5,
-            font=dict(size=10)
+            font=dict(size=11)
         ),
         hoverlabel=dict(
             bgcolor="#ffffff",
-            font_size=12,
+            font_size=13,
             font_family="Segoe UI, sans-serif"
         )
     )
@@ -190,7 +190,7 @@ else:
 app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 
 # -------------------------------------------------------------
-# OPCIÓN 1: DASHBOARD PRINCIPAL (3 GRÁFICOS DE TORTA: PAC, INCUBADORAS, INNOVACIÓN)
+# OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
     st.markdown("### Dirección General de Vinculación con el Medio")
@@ -210,14 +210,83 @@ if app_mode == "Dashboard Principal":
     m3.metric("Total Iniciativas Innovación", tot_bd)
 
     st.markdown("---")
-    st.subheader("Distribución Porcentual de Proyectos por Facultad según Iniciativa")
 
-    # Layout de 3 columnas para los 3 gráficos de torta lado a lado
-    col_g1, col_g2, col_g3 = st.columns(3)
+    # Menú de selección de iniciativa (Foco principal predeterminado en "Todos")
+    st.markdown("##### Filtrar Vista de Gráficos por Iniciativa")
+    filtro_iniciativa = st.radio(
+        "Seleccione iniciativa:",
+        ["Todos", "PAC", "Incubadoras", "Innovación"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
 
-    # 1. Gráfico de Torta PAC
-    with col_g1:
-        st.markdown("##### Proyectos PAC")
+    st.markdown("---")
+
+    # Renderizado dinámico según la selección (Foco predeterminado: "Todos" muestra los 3 gráficos)
+    if filtro_iniciativa == "Todos":
+        st.subheader("Distribución Porcentual de Proyectos por Facultad (Todas las Iniciativas)")
+        col_g1, col_g2, col_g3 = st.columns(3)
+
+        # 1. Gráfico PAC
+        with col_g1:
+            st.markdown("##### Proyectos PAC")
+            if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
+                df_p_pac = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
+                df_fac_pac = df_p_pac['FACULTAD LÍDER'].value_counts().reset_index()
+                df_fac_pac.columns = ['Facultad', 'Cantidad']
+                
+                fig_pac = px.pie(
+                    df_fac_pac, names='Facultad', values='Cantidad',
+                    hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
+                )
+                fig_pac = aplicar_estilo_powerbi_pie(fig_pac, "PAC por Facultad")
+                st.plotly_chart(fig_pac, use_container_width=True)
+            else:
+                st.info("Sin datos PAC disponibles.")
+
+        # 2. Gráfico Incubadoras
+        with col_g2:
+            st.markdown("##### Incubadoras")
+            if dict_inc and hoja_inc_nombre in dict_inc:
+                df_inc_activa = dict_inc[hoja_inc_nombre]
+                col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
+                if col_fac_inc:
+                    df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
+                    df_fac_inc.columns = ['Facultad', 'Cantidad']
+                    
+                    fig_inc = px.pie(
+                        df_fac_inc, names='Facultad', values='Cantidad',
+                        hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
+                    )
+                    fig_inc = aplicar_estilo_powerbi_pie(fig_inc, "Incubadoras por Facultad")
+                    st.plotly_chart(fig_inc, use_container_width=True)
+                else:
+                    st.info("Columna de facultad no encontrada.")
+            else:
+                st.info("Sin datos de Incubadoras.")
+
+        # 3. Gráfico BD Innovación
+        with col_g3:
+            st.markdown("##### BD Innovación")
+            if not df_bd.empty:
+                col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
+                if col_fac_bd:
+                    df_fac_bd = df_bd[col_fac_bd].value_counts().reset_index()
+                    df_fac_bd.columns = ['Facultad', 'Cantidad']
+                    
+                    fig_bd = px.pie(
+                        df_fac_bd, names='Facultad', values='Cantidad',
+                        hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
+                    )
+                    fig_bd = aplicar_estilo_powerbi_pie(fig_bd, "Innovación por Facultad")
+                    st.plotly_chart(fig_bd, use_container_width=True)
+                else:
+                    st.info("Columna de facultad no encontrada.")
+            else:
+                st.info("Sin datos de Innovación.")
+
+    elif filtro_iniciativa == "PAC":
+        st.subheader("Distribución Detallada - Proyectos PAC por Facultad")
         if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
             df_p_pac = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
             df_fac_pac = df_p_pac['FACULTAD LÍDER'].value_counts().reset_index()
@@ -227,14 +296,13 @@ if app_mode == "Dashboard Principal":
                 df_fac_pac, names='Facultad', values='Cantidad',
                 hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
             )
-            fig_pac = aplicar_estilo_powerbi_pie(fig_pac, "Participación PAC por Facultad")
+            fig_pac = aplicar_estilo_powerbi_pie(fig_pac, "Participación Proyectos PAC por Facultad")
             st.plotly_chart(fig_pac, use_container_width=True)
         else:
             st.info("Sin datos PAC disponibles.")
 
-    # 2. Gráfico de Torta Incubadoras
-    with col_g2:
-        st.markdown("##### Incubadoras")
+    elif filtro_iniciativa == "Incubadoras":
+        st.subheader("Distribución Detallada - Incubadoras por Facultad")
         if dict_inc and hoja_inc_nombre in dict_inc:
             df_inc_activa = dict_inc[hoja_inc_nombre]
             col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
@@ -253,9 +321,8 @@ if app_mode == "Dashboard Principal":
         else:
             st.info("Sin datos de Incubadoras.")
 
-    # 3. Gráfico de Torta BD Innovación
-    with col_g3:
-        st.markdown("##### BD Innovación")
+    elif filtro_iniciativa == "Innovación":
+        st.subheader("Distribución Detallada - BD Innovación por Facultad")
         if not df_bd.empty:
             col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
             if col_fac_bd:
@@ -266,7 +333,7 @@ if app_mode == "Dashboard Principal":
                     df_fac_bd, names='Facultad', values='Cantidad',
                     hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
                 )
-                fig_bd = aplicar_estilo_powerbi_pie(fig_bd, "Participación Innovación por Facultad")
+                fig_bd = aplicar_estilo_powerbi_pie(fig_bd, "Participación BD Innovación por Facultad")
                 st.plotly_chart(fig_bd, use_container_width=True)
             else:
                 st.info("Columna de facultad no encontrada.")
