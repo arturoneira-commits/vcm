@@ -6,11 +6,11 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Dirección General de Vinculación con el Medio - UNIACC", layout="wide", page_icon=None)
 
-# Control de autenticación en session_state (debe ir antes de renderizar la UI para aplicar el CSS del header)
+# Control de autenticación en session_state
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Estilos CSS personalizados (Fondo blanco y tonos corporativos limpios, sin iconos si no es admin)
+# Estilos CSS personalizados
 css_toolbar_oculta = "header {visibility: hidden;}" if not st.session_state.is_admin else "header {visibility: visible;}"
 
 st.markdown(f"""
@@ -60,7 +60,7 @@ def aplicar_estilo_powerbi(fig, titulo=""):
     fig.update_layout(
         title=dict(
             text=titulo,
-            font=dict(size=16, color="#1e293b", family="Segoe UI, sans-serif"),
+            font=dict(size=15, color="#1e293b", family="Segoe UI, sans-serif"),
             x=0.02,
             y=0.95
         ),
@@ -89,7 +89,6 @@ def aplicar_estilo_powerbi(fig, titulo=""):
             font_family="Segoe UI, sans-serif"
         )
     )
-    # Dar un toque profesional a las barras
     fig.update_traces(
         marker_line_color='#002855',
         marker_line_width=1.5,
@@ -197,139 +196,102 @@ else:
 app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 
 # -------------------------------------------------------------
-# OPCIÓN 1: DASHBOARD PRINCIPAL
+# OPCIÓN 1: DASHBOARD PRINCIPAL (3 GRÁFICOS: PAC, INCUBADORAS, INNOVACIÓN)
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
-    dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
-    
     st.markdown("### Dirección General de Vinculación con el Medio")
-    st.markdown("#### Reporte de proyectos 2026")
+    st.markdown("#### Reporte de proyectos 2026 - Resumen General por Iniciativa")
     st.markdown("##### UNIACC")
     st.markdown("---")
 
-    if dataset_choice == "BD Innovación":
-        st.subheader("Indicadores Clave - BD Innovación (Sin Canceladas)")
+    # Métricas Globales Superiores
+    tot_pac = df_pac['ID'].nunique() if ('ID' in df_pac.columns and not df_pac.empty) else len(df_pac)
+    hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
+    tot_inc = len(dict_inc[hoja_inc_nombre]) if hoja_inc_nombre and hoja_inc_nombre in dict_inc else 0
+    tot_bd = len(df_bd) if not df_bd.empty else 0
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total Proyectos PAC", tot_pac)
+    m2.metric("Total Proyectos Incubadoras", tot_inc)
+    m3.metric("Total Iniciativas Innovación", tot_bd)
+
+    st.markdown("---")
+    st.subheader("Cantidad de Proyectos por Facultad según Iniciativa")
+
+    # Layout de 3 columnas para los 3 gráficos profesionales lado a lado
+    col_g1, col_g2, col_g3 = st.columns(3)
+
+    # 1. Gráfico PAC
+    with col_g1:
+        st.markdown("##### Proyectos PAC")
+        if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
+            df_p_pac = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
+            df_fac_pac = df_p_pac['FACULTAD LÍDER'].value_counts().reset_index()
+            df_fac_pac.columns = ['Facultad', 'Cantidad']
+            df_fac_pac = df_fac_pac.sort_values(by='Cantidad', ascending=True)
+            
+            fig_pac = px.bar(
+                df_fac_pac, x='Cantidad', y='Facultad', orientation='h',
+                text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+            )
+            fig_pac = aplicar_estilo_powerbi(fig_pac, "PAC por Facultad")
+            st.plotly_chart(fig_pac, use_container_width=True)
+        else:
+            st.info("Sin datos PAC disponibles.")
+
+    # 2. Gráfico Incubadoras
+    with col_g2:
+        st.markdown("##### Incubadoras")
+        if dict_inc and hoja_inc_nombre in dict_inc:
+            df_inc_activa = dict_inc[hoja_inc_nombre]
+            col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
+            if col_fac_inc:
+                df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
+                df_fac_inc.columns = ['Facultad', 'Cantidad']
+                df_fac_inc = df_fac_inc.sort_values(by='Cantidad', ascending=True)
+                
+                fig_inc = px.bar(
+                    df_fac_inc, x='Cantidad', y='Facultad', orientation='h',
+                    text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+                )
+                fig_inc = aplicar_estilo_powerbi(fig_inc, "Incubadoras por Facultad")
+                st.plotly_chart(fig_inc, use_container_width=True)
+            else:
+                st.info("Columna de facultad no encontrada.")
+        else:
+            st.info("Sin datos de Incubadoras.")
+
+    # 3. Gráfico BD Innovación
+    with col_g3:
+        st.markdown("##### BD Innovación")
         if not df_bd.empty:
-            total_iniciativas = len(df_bd)
-            en_ejecucion = len(df_bd[df_bd['Estado'].str.lower() == 'en ejecución']) if 'Estado' in df_bd.columns else 0
-            finalizados = len(df_bd[df_bd['Estado'].str.lower() == 'finalizado']) if 'Estado' in df_bd.columns else 0
-            total_estudiantes = int(df_bd['Estudiantes'].sum()) if 'Estudiantes' in df_bd.columns else 0
-            
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Iniciativas Válidas", total_iniciativas)
-            col2.metric("En Ejecución", en_ejecucion)
-            col3.metric("Finalizados", finalizados)
-            col4.metric("Estudiantes Totales", total_estudiantes)
-            
-            st.markdown("---")
-            st.subheader("Cantidad de Iniciativas por Facultad (BD Innovación)")
-            
             col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
             if col_fac_bd:
                 df_fac_bd = df_bd[col_fac_bd].value_counts().reset_index()
-                df_fac_bd.columns = ['Facultad', 'Cantidad de Iniciativas']
-                df_fac_bd = df_fac_bd.sort_values(by='Cantidad de Iniciativas', ascending=True)
+                df_fac_bd.columns = ['Facultad', 'Cantidad']
+                df_fac_bd = df_fac_bd.sort_values(by='Cantidad', ascending=True)
                 
-                if not df_fac_bd.empty:
-                    fig_bd = px.bar(
-                        df_fac_bd,
-                        x='Cantidad de Iniciativas',
-                        y='Facultad',
-                        orientation='h',
-                        text='Cantidad de Iniciativas',
-                        color='Cantidad de Iniciativas',
-                        color_continuous_scale='Blues'
-                    )
-                    fig_bd = aplicar_estilo_powerbi(fig_bd, "Iniciativas de Innovación por Facultad")
-                    st.plotly_chart(fig_bd, use_container_width=True)
+                fig_bd = px.bar(
+                    df_fac_bd, x='Cantidad', y='Facultad', orientation='h',
+                    text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+                )
+                fig_bd = aplicar_estilo_powerbi(fig_bd, "Innovación por Facultad")
+                st.plotly_chart(fig_bd, use_container_width=True)
             else:
-                st.info("No se encontró una columna de facultad en BD Innovación.")
-
-            st.markdown("---")
-            st.subheader("Detalle de Iniciativas de Innovación")
-            st.dataframe(df_bd, use_container_width=True)
+                st.info("Columna de facultad no encontrada.")
         else:
-            st.info("No hay datos cargados para BD Innovación.")
+            st.info("Sin datos de Innovación.")
 
-    elif dataset_choice == "Reporte General Incubadoras":
-        st.subheader("Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
-        if dict_inc:
-            hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
-            df_inc_activa = dict_inc[hoja_inc_nombre]
-            
-            total_proyectos_inc = len(df_inc_activa)
-            col_fac_inc = next((c for c in df_inc_activa.columns if 'facultad' in c.lower()), None)
-            total_facultades_inc = df_inc_activa[col_fac_inc].nunique() if col_fac_inc else 0
-            
-            col_m1, col_m2 = st.columns(2)
-            col_m1.metric("Total de Proyectos (Incubadoras)", total_proyectos_inc)
-            col_m2.metric("Total de Facultades", total_facultades_inc)
-            
-            st.markdown("---")
-            st.subheader("Cantidad de Proyectos por Facultad Líder (Incubadoras)")
-            
-            if col_fac_inc:
-                df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
-                df_fac_inc.columns = ['Facultad', 'Cantidad de Proyectos']
-                df_fac_inc = df_fac_inc.sort_values(by='Cantidad de Proyectos', ascending=True)
-                
-                if not df_fac_inc.empty:
-                    fig_inc = px.bar(
-                        df_fac_inc,
-                        x='Cantidad de Proyectos',
-                        y='Facultad',
-                        orientation='h',
-                        text='Cantidad de Proyectos',
-                        color='Cantidad de Proyectos',
-                        color_continuous_scale='Blues'
-                    )
-                    fig_inc = aplicar_estilo_powerbi(fig_inc, "Proyectos de Incubación por Facultad Líder")
-                    st.plotly_chart(fig_inc, use_container_width=True)
-            else:
-                st.info("No se encontró una columna de facultad en esta hoja de Incubadoras.")
-
-            st.markdown("---")
-            st.subheader("Detalle de Incubadoras")
-            st.dataframe(df_inc_activa, use_container_width=True)
-        else:
-            st.info("No hay datos cargados para Incubadoras.")
-
-    else: # Proyectos PAC
-        st.subheader("Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
-        if not df_pac.empty:
-            total_proyectos_pac = df_pac['ID'].nunique() if 'ID' in df_pac.columns else len(df_pac)
-            total_estudiantes = int(df_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_pac.columns else 0
-            
-            col1, col2 = st.columns(2)
-            col1.metric("Total Proyectos PAC Válidos", total_proyectos_pac)
-            col2.metric("Estudiantes Participantes", total_estudiantes)
-            
-            st.markdown("---")
-            st.subheader("Cantidad de Proyectos PAC por Facultad Líder")
-            if 'FACULTAD LÍDER' in df_pac.columns:
-                df_proyectos_unicos = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
-                df_fac_pac = df_proyectos_unicos['FACULTAD LÍDER'].value_counts().reset_index()
-                df_fac_pac.columns = ['Facultad', 'Cantidad de Proyectos']
-                df_fac_pac = df_fac_pac.sort_values(by='Cantidad de Proyectos', ascending=True)
-                
-                if not df_fac_pac.empty:
-                    fig_pac = px.bar(
-                        df_fac_pac,
-                        x='Cantidad de Proyectos',
-                        y='Facultad',
-                        orientation='h',
-                        text='Cantidad de Proyectos',
-                        color='Cantidad de Proyectos',
-                        color_continuous_scale='Blues'
-                    )
-                    fig_pac = aplicar_estilo_powerbi(fig_pac, "Proyectos PAC Activos por Facultad Líder")
-                    st.plotly_chart(fig_pac, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("Detalle de Proyectos PAC")
-            st.dataframe(df_pac, use_container_width=True)
-        else:
-            st.info("No hay datos cargados para Proyectos PAC.")
+    st.markdown("---")
+    st.markdown("### Tablas de Detalle General")
+    tab1, tab2, tab3 = st.tabs(["Proyectos PAC", "Incubadoras", "BD Innovación"])
+    with tab1:
+        st.dataframe(df_pac, use_container_width=True)
+    with tab2:
+        if dict_inc and hoja_inc_nombre in dict_inc:
+            st.dataframe(dict_inc[hoja_inc_nombre], use_container_width=True)
+    with tab3:
+        st.dataframe(df_bd, use_container_width=True)
 
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
@@ -341,7 +303,7 @@ elif app_mode == "Socios Comunitarios":
     st.markdown("---")
     
     st.title("Red de Socios Comunitarios")
-    st.markdown("Extracción directa de organizaciones y facultades desde las estructuras limpias.")
+    st.markdown("Extracción directa de organizaciones y facultades, incluyendo el nombre del proyecto asociado.")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
@@ -399,13 +361,8 @@ elif app_mode == "Socios Comunitarios":
         
         if not df_grafico.empty:
             fig = px.bar(
-                df_grafico, 
-                x='Cantidad de Entidades', 
-                y='Facultad', 
-                orientation='h',
-                text='Cantidad de Entidades',
-                color='Cantidad de Entidades',
-                color_continuous_scale='Blues'
+                df_grafico, x='Cantidad de Entidades', y='Facultad', orientation='h',
+                text='Cantidad de Entidades', color='Cantidad de Entidades', color_continuous_scale='Blues'
             )
             fig = aplicar_estilo_powerbi(fig, f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})")
             st.plotly_chart(fig, use_container_width=True)
