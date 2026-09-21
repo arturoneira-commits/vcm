@@ -39,8 +39,8 @@ if 'df_bd' not in st.session_state:
     st.session_state.df_bd = pd.DataFrame()
 if 'dict_inc' not in st.session_state:
     st.session_state.dict_inc = {}
-if 'dict_pac' not in st.session_state:
-    st.session_state.dict_pac = {}
+if 'df_pac' not in st.session_state:
+    st.session_state.df_pac = pd.DataFrame()
 
 archivos_en_raiz = os.listdir('.') if os.path.exists('.') else []
 
@@ -74,36 +74,22 @@ if not st.session_state.dict_inc:
     except Exception:
         pass
 
-# 3. Cargar Proyectos PAC (Filtrando Borrador y Cancelada)
-if not st.session_state.dict_pac:
+# 3. Cargar Proyectos PAC (Desde reporte_general_PAC_limpio.xlsx, filtrando Borrador y Cancelada)
+if st.session_state.df_pac.empty:
     try:
-        pac_files = [f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')]
-        if not pac_files:
-            pac_files = [f for f in archivos_en_raiz if f.endswith('.xlsx') and f not in [i for i in archivos_en_raiz if 'INC' in i.upper()]]
-
-        if pac_files:
-            file_pac = pac_files[0]
-            xls_pac = pd.ExcelFile(file_pac)
-            dict_pac = {sh: pd.read_excel(file_pac, sheet_name=sh) for sh in xls_pac.sheet_names}
-            for sh in dict_pac:
-                dict_pac[sh].columns = [str(c).strip() for c in dict_pac[sh].columns]
+        pac_file = 'reporte_general_PAC_limpio.xlsx' if os.path.exists('reporte_general_PAC_limpio.xlsx') else next((f for f in archivos_en_raiz if 'PAC' in f.upper() and f.endswith('.xlsx')), None)
+        
+        if pac_file:
+            df_pac_raw = pd.read_excel(pac_file, sheet_name=0)
+            df_pac_raw.columns = [str(c).strip() for c in df_pac_raw.columns]
             
-            hoja_proyectos = 'Proyectos' if 'Proyectos' in dict_pac else list(dict_pac.keys())[0]
-            
-            if hoja_proyectos in dict_pac and 'ESTADO DEL PROYECTO' in dict_pac[hoja_proyectos].columns:
-                df_proy_pac = dict_pac[hoja_proyectos]
-                df_proy_limpio = df_proy_pac[
-                    ~df_proy_pac['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
+            if 'ESTADO DEL PROYECTO' in df_pac_raw.columns:
+                df_pac_limpio = df_pac_raw[
+                    ~df_pac_raw['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])
                 ].copy()
-                dict_pac[hoja_proyectos] = df_proy_limpio
-                
-                ids_validos = df_proy_limpio['ID'].dropna().tolist() if 'ID' in df_proy_limpio.columns else []
-                if ids_validos:
-                    for sh in dict_pac:
-                        if sh != hoja_proyectos and 'ID' in dict_pac[sh].columns:
-                            dict_pac[sh] = dict_pac[sh][dict_pac[sh]['ID'].isin(ids_validos)]
-                            
-            st.session_state.dict_pac = dict_pac
+                st.session_state.df_pac = df_pac_limpio
+            else:
+                st.session_state.df_pac = df_pac_raw
     except Exception:
         pass
 
@@ -215,20 +201,23 @@ if app_mode == "📊 Dashboard Principal":
 
     else: # Proyectos PAC
         st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
-        dict_pac = st.session_state.get('dict_pac', {})
-        hoja_proyectos = 'Proyectos' if 'Proyectos' in dict_pac else (list(dict_pac.keys())[0] if dict_pac else None)
+        df_pac = st.session_state.get('df_pac', pd.DataFrame())
         
-        if hoja_proyectos and hoja_proyectos in dict_pac:
-            df_proyectos_pac = dict_pac[hoja_proyectos]
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Proyectos PAC Válidos", len(df_proyectos_pac))
-            col2.metric("Estudiantes Participantes", int(df_proyectos_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_proyectos_pac.columns else 0)
-            col3.metric("Beneficiarios Totales", int(df_proyectos_pac['BENEFICIARIOS'].sum()) if 'BENEFICIARIOS' in df_proyectos_pac.columns else 0)
+        if not df_pac.empty:
+            # Si hay proyectos repetidos por ID o por organización, contamos proyectos únicos por ID
+            total_proyectos_pac = df_pac['ID'].nunique() if 'ID' in df_pac.columns else len(df_pac)
+            total_estudiantes = int(df_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_pac.columns else 0
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Total Proyectos PAC Válidos", total_proyectos_pac)
+            col2.metric("Estudiantes Participantes", total_estudiantes)
             
             st.markdown("---")
             st.subheader("📈 Cantidad de Proyectos PAC por Facultad Líder")
-            if 'FACULTAD LÍDER' in df_proyectos_pac.columns:
-                df_fac_pac = df_proyectos_pac['FACULTAD LÍDER'].value_counts().reset_index()
+            if 'FACULTAD LÍDER' in df_pac.columns:
+                # Agrupamos por ID y Facultad para contar cada proyecto una sola vez
+                df_proyectos_unicos = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
+                df_fac_pac = df_proyectos_unicos['FACULTAD LÍDER'].value_counts().reset_index()
                 df_fac_pac.columns = ['Facultad', 'Cantidad de Proyectos']
                 df_fac_pac = df_fac_pac.sort_values(by='Cantidad de Proyectos', ascending=True)
                 
@@ -247,46 +236,39 @@ if app_mode == "📊 Dashboard Principal":
                     st.plotly_chart(fig_pac, use_container_width=True)
             
             st.markdown("---")
-            hoja_activa_pac = st.selectbox("Seleccionar hoja de detalle PAC a visualizar:", list(dict_pac.keys()))
-            st.dataframe(dict_pac[hoja_activa_pac], use_container_width=True)
+            st.subheader("📋 Detalle de Proyectos PAC")
+            st.dataframe(df_pac, use_container_width=True)
         else:
-            st.info("No se encontró el archivo de Proyectos PAC en el repositorio.")
+            st.info("No se encontró el archivo 'reporte_general_PAC_limpio.xlsx' en el repositorio.")
 
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
 elif app_mode == "🤝 Socios Comunitarios":
     st.title("🤝 Red de Socios Comunitarios")
-    st.markdown("Cruce automatizado entre la hoja de **Organizaciones** (columna ORGANIZACIÓN) y la hoja principal **Proyectos** por ID (filtrando borradores y canceladas).")
+    st.markdown("Extracción directa de organizaciones y facultades desde la nueva estructura (filtrando borradores y canceladas).")
     
     tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
-    dict_actual = st.session_state.get('dict_pac', {}) if tipo_fuente == "Proyectos PAC" else st.session_state.get('dict_inc', {})
+    if tipo_fuente == "Proyectos PAC":
+        df_src = st.session_state.get('df_pac', pd.DataFrame())
+    else:
+        dict_inc = st.session_state.get('dict_inc', {})
+        hoja_inc = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
+        df_src = dict_inc[hoja_inc] if hoja_inc else pd.DataFrame()
     
-    if 'Organizaciones' in dict_actual:
-        df_org = dict_actual['Organizaciones'].copy()
-        hoja_ppal_nombre = 'Proyectos' if 'Proyectos' in dict_actual else list(dict_actual.keys())[0]
-        df_ppal = dict_actual[hoja_ppal_nombre].copy()
+    if not df_src.empty:
+        col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower()), 'ORGANIZACIÓN')
+        col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), 'FACULTAD LÍDER')
+        col_id = next((c for c in df_src.columns if 'id' in c.lower()), 'ID')
+        col_tipo = next((c for c in df_src.columns if 'tipo' in c.lower() or 'iniciativa' in c.lower()), None)
         
-        # Limpiar filas vacías en la columna ORGANIZACIÓN
-        col_org = next((c for c in df_org.columns if 'organización' in c.lower() or 'organizacion' in c.lower()), 'ORGANIZACIÓN')
-        df_org = df_org.dropna(subset=[col_org])
-        
-        if not df_org.empty and 'ID' in df_org.columns and 'ID' in df_ppal.columns:
-            # Cruce (merge) de Organizaciones con Proyectos usando el ID
-            df_merged = pd.merge(
-                df_org,
-                df_ppal[['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA'] if 'FACULTAD LÍDER' in df_ppal.columns else ['ID']],
-                on='ID',
-                how='left',
-                suffixes=('', '_ppal')
-            )
+        if col_org in df_src.columns and col_fac in df_src.columns:
+            df_org_clean = df_src.dropna(subset=[col_org]).copy()
             
-            col_fac_final = 'FACULTAD LÍDER' if 'FACULTAD LÍDER' in df_merged.columns else next((c for c in df_merged.columns if 'facultad' in c.lower()), None)
-            
-            total_socios = df_merged[col_org].nunique()
-            total_facultades = df_merged[col_fac_final].nunique() if col_fac_final else 0
+            total_socios = df_org_clean[col_org].nunique()
+            total_facultades = df_org_clean[col_fac].nunique()
             
             col_m1, col_m2 = st.columns(2)
             col_m1.metric("🏢 Total de Socios Comunitarios", total_socios)
@@ -295,33 +277,32 @@ elif app_mode == "🤝 Socios Comunitarios":
             st.markdown("---")
             st.subheader("📈 Distribución de Socios Comunitarios por Facultad")
             
-            if col_fac_final:
-                df_grafico = df_merged.dropna(subset=[col_fac_final, col_org]).groupby(col_fac_final)[col_org].nunique().reset_index()
-                df_grafico.columns = ['Facultad', 'Cantidad de Socios']
-                df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
-                
-                if not df_grafico.empty:
-                    fig = px.bar(
-                        df_grafico, 
-                        x='Cantidad de Socios', 
-                        y='Facultad', 
-                        orientation='h',
-                        title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
-                        text='Cantidad de Socios',
-                        color='Cantidad de Socios',
-                        color_continuous_scale='Greens'
-                    )
-                    fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
-                    st.plotly_chart(fig, use_container_width=True)
+            df_grafico = df_org_clean.dropna(subset=[col_fac, col_org]).groupby(col_fac)[col_org].nunique().reset_index()
+            df_grafico.columns = ['Facultad', 'Cantidad de Socios']
+            df_grafico = df_grafico.sort_values(by='Cantidad de Socios', ascending=True)
+            
+            if not df_grafico.empty:
+                fig = px.bar(
+                    df_grafico, 
+                    x='Cantidad de Socios', 
+                    y='Facultad', 
+                    orientation='h',
+                    title=f"Cantidad de Socios Comunitarios Únicos por Facultad ({tipo_fuente})",
+                    text='Cantidad de Socios',
+                    color='Cantidad de Socios',
+                    color_continuous_scale='Greens'
+                )
+                fig.update_layout(xaxis_title="Cantidad de Socios Comunitarios", yaxis_title="Facultad Líder")
+                st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("---")
             st.subheader("🏢 Detalle por Socio Comunitario")
             
-            socios_agrupados = df_merged.groupby(col_org).agg(
+            socios_agrupados = df_org_clean.groupby(col_org).agg(
                 total_convenios=(col_org, 'count'),
-                codigos_ids=('ID', lambda x: ", ".join(x.dropna().astype(str).unique())),
-                facultades=(col_fac_final, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_fac_final else (col_org, lambda x: "N/A"),
-                tipos=('TIPO DE INICIATIVA', lambda x: ", ".join(x.dropna().astype(str).unique())) if 'TIPO DE INICIATIVA' in df_merged.columns else (col_org, lambda x: "N/A")
+                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id in df_org_clean.columns else (col_org, lambda x: "N/A"),
+                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
+                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
             ).reset_index()
             
             cols = st.columns(2)
@@ -336,9 +317,9 @@ elif app_mode == "🤝 Socios Comunitarios":
                         </div>
                     """, unsafe_allow_html=True)
         else:
-            st.warning("No se encontró coincidencia por ID entre Organizaciones y Proyectos.")
+            st.warning("No se encontraron las columnas de organización o facultad en los datos.")
     else:
-        st.info(f"El archivo seleccionado no contiene una hoja 'Organizaciones'.")
+        st.info("No hay datos cargados para la fuente seleccionada.")
 
 # -------------------------------------------------------------
 # OPCIÓN 3: GESTIÓN Y ACTUALIZACIÓN DE ARCHIVOS
@@ -356,22 +337,18 @@ else:
             st.success(f"¡Archivo detectado! Hojas disponibles: {xls_subido.sheet_names}")
             
             if st.button("Procesar y Guardar con Limpieza Automática"):
-                dict_cargado = {sh: pd.read_excel(uploaded_file, sheet_name=sh) for sh in xls_subido.sheet_names}
-                for sh in dict_cargado:
-                    dict_cargado[sh].columns = [str(c).strip() for c in dict_cargado[sh].columns]
+                df_subido = pd.read_excel(uploaded_file, sheet_name=0)
+                df_subido.columns = [str(c).strip() for c in df_subido.columns]
                 
-                hoja_p = 'Proyectos' if 'Proyectos' in dict_cargado else (list(dict_cargado.keys())[0])
-                if hoja_p in dict_cargado and 'ESTADO DEL PROYECTO' in dict_cargado[hoja_p].columns:
-                    df_p = dict_cargado[hoja_p]
-                    df_p = df_p[~df_p['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
-                    dict_cargado[hoja_p] = df_p
+                if 'ESTADO DEL PROYECTO' in df_subido.columns:
+                    df_subido = df_subido[~df_subido['ESTADO DEL PROYECTO'].astype(str).str.lower().isin(['borrador', 'cancelada', 'cancelado'])].copy()
 
                 if dataset_choice == "BD Innovación":
-                    st.session_state.df_bd = list(dict_cargado.values())[0]
+                    st.session_state.df_bd = df_subido
                 elif dataset_choice == "Reporte General Incubadoras":
-                    st.session_state.dict_inc = dict_cargado
+                    st.session_state.dict_inc = {xls_subido.sheet_names[0]: df_subido}
                 else:
-                    st.session_state.dict_pac = dict_cargado
+                    st.session_state.df_pac = df_subido
                     
                 st.success("¡Base de datos procesada y guardada filtrando Borradores y Canceladas!")
         except Exception as e:
