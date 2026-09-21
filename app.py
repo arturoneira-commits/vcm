@@ -6,40 +6,42 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Dashboard de Proyectos e Innovación", layout="wide", page_icon="📊")
 
-# Estilos CSS personalizados
+# Estilos CSS personalizados (Fondo blanco y tonos celeste/azul, sin iconos)
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .main { background-color: #ffffff; }
+    .stApp { background-color: #ffffff; }
+    .stMetric { background-color: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
     .socio-card {
         background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-left: 5px solid #2e7d32;
+        border: 1px solid #cbd5e1;
+        border-left: 5px solid #0284c7;
         padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-bottom: 20px;
     }
     .socio-title {
         font-size: 18px;
         font-weight: bold;
-        color: #1f2937;
+        color: #0f172a;
         margin-bottom: 10px;
     }
     .socio-detail {
         font-size: 14px;
-        color: #4b5563;
+        color: #334155;
         margin-bottom: 5px;
     }
     .admin-badge {
-        background-color: #d1e7dd;
-        color: #0f5132;
-        padding: 5px 10px;
-        border-radius: 5px;
+        background-color: #e0f2fe;
+        color: #0369a1;
+        padding: 6px 12px;
+        border-radius: 6px;
         font-size: 12px;
         font-weight: bold;
         text-align: center;
         margin-bottom: 10px;
+        border: 1px solid #bae6fd;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -97,10 +99,9 @@ if inc_files:
             valid_ids = dict_inc[hoja_inc]['ID'].dropna().tolist()
             df_orgs_filtradas = df_orgs_raw[df_orgs_raw['ID'].isin(valid_ids)].copy()
             
-            # Cruzar con la facultad del proyecto incubador
             df_proyectos_info = dict_inc[hoja_inc][['ID', 'FACULTAD LÍDER', 'TIPO DE INICIATIVA']].copy()
             df_inc_orgs = pd.merge(df_orgs_filtradas, df_proyectos_info, on='ID', how='inner', suffixes=('', '_proj'))
-    except Exception as e:
+    except Exception:
         pass
 
 # 3. Cargar Proyectos PAC
@@ -123,18 +124,18 @@ if pac_file:
 # -------------------------------------------------------------
 # AUTENTICACIÓN Y PANEL DE CONTROL (SIDEBAR)
 # -------------------------------------------------------------
-st.sidebar.header("🎛️ Navegación")
+st.sidebar.header("Navegación")
 
-opciones_menu = ["📊 Dashboard Principal", "🤝 Socios Comunitarios"]
+opciones_menu = ["Dashboard Principal", "Socios Comunitarios"]
 
 if st.session_state.is_admin:
-    st.sidebar.markdown('<div class="admin-badge">🔓 Modo Administrador Activo</div>', unsafe_allow_html=True)
-    opciones_menu.append("📁 Gestión y Actualización de Archivos")
+    st.sidebar.markdown('<div class="admin-badge">Modo Administrador Activo</div>', unsafe_allow_html=True)
+    opciones_menu.append("Gestión y Actualización de Archivos")
     if st.sidebar.button("Cerrar Sesión de Admin"):
         st.session_state.is_admin = False
         st.rerun()
 else:
-    with st.sidebar.expander("🔒 Acceso Administrador"):
+    with st.sidebar.expander("Acceso Administrador"):
         password_input = st.text_input("Contraseña:", type="password")
         if st.button("Ingresar"):
             if password_input == "admin123":
@@ -149,13 +150,13 @@ app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 # -------------------------------------------------------------
 # OPCIÓN 1: DASHBOARD PRINCIPAL
 # -------------------------------------------------------------
-if app_mode == "📊 Dashboard Principal":
+if app_mode == "Dashboard Principal":
     dataset_choice = st.sidebar.radio("Seleccionar Base de Datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     
-    st.title("🚀 Dashboard de Iniciativas e Incubación de Proyectos")
+    st.title("Dashboard de Iniciativas e Incubación de Proyectos")
 
     if dataset_choice == "BD Innovación":
-        st.subheader("📊 Indicadores Clave - BD Innovación (Sin Canceladas)")
+        st.subheader("Indicadores Clave - BD Innovación (Sin Canceladas)")
         if not df_bd.empty:
             total_iniciativas = len(df_bd)
             en_ejecucion = len(df_bd[df_bd['Estado'].str.lower() == 'en ejecución']) if 'Estado' in df_bd.columns else 0
@@ -169,7 +170,7 @@ if app_mode == "📊 Dashboard Principal":
             col4.metric("Estudiantes Totales", total_estudiantes)
             
             st.markdown("---")
-            st.subheader("📈 Cantidad de Iniciativas por Facultad (BD Innovación)")
+            st.subheader("Cantidad de Iniciativas por Facultad (BD Innovación)")
             
             col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
             if col_fac_bd:
@@ -186,21 +187,21 @@ if app_mode == "📊 Dashboard Principal":
                         title="Iniciativas de Innovación por Facultad",
                         text='Cantidad de Iniciativas',
                         color='Cantidad de Iniciativas',
-                        color_continuous_scale='Purples'
+                        color_continuous_scale='Blues'
                     )
-                    fig_bd.update_layout(xaxis_title="Número de Iniciativas", yaxis_title="Facultad")
+                    fig_bd.update_layout(xaxis_title="Número de Iniciativas", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
                     st.plotly_chart(fig_bd, use_container_width=True)
             else:
                 st.info("No se encontró una columna de facultad en BD Innovación.")
 
             st.markdown("---")
-            st.subheader("📋 Detalle de Iniciativas de Innovación")
+            st.subheader("Detalle de Iniciativas de Innovación")
             st.dataframe(df_bd, use_container_width=True)
         else:
             st.info("No hay datos cargados para BD Innovación.")
 
     elif dataset_choice == "Reporte General Incubadoras":
-        st.subheader("📊 Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
+        st.subheader("Indicadores Clave - Incubadoras (Sin Borradores ni Canceladas)")
         if dict_inc:
             hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else list(dict_inc.keys())[0]
             df_inc_activa = dict_inc[hoja_inc_nombre]
@@ -210,11 +211,11 @@ if app_mode == "📊 Dashboard Principal":
             total_facultades_inc = df_inc_activa[col_fac_inc].nunique() if col_fac_inc else 0
             
             col_m1, col_m2 = st.columns(2)
-            col_m1.metric("📁 Total de Proyectos (Incubadoras)", total_proyectos_inc)
-            col_m2.metric("🏛️ Total de Facultades", total_facultades_inc)
+            col_m1.metric("Total de Proyectos (Incubadoras)", total_proyectos_inc)
+            col_m2.metric("Total de Facultades", total_facultades_inc)
             
             st.markdown("---")
-            st.subheader("📈 Cantidad de Proyectos por Facultad Líder (Incubadoras)")
+            st.subheader("Cantidad de Proyectos por Facultad Líder (Incubadoras)")
             
             if col_fac_inc:
                 df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
@@ -230,21 +231,21 @@ if app_mode == "📊 Dashboard Principal":
                         title="Proyectos de Incubación por Facultad Líder",
                         text='Cantidad de Proyectos',
                         color='Cantidad de Proyectos',
-                        color_continuous_scale='Oranges'
+                        color_continuous_scale='Blues'
                     )
-                    fig_inc.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad")
+                    fig_inc.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
                     st.plotly_chart(fig_inc, use_container_width=True)
             else:
                 st.info("No se encontró una columna de facultad en esta hoja de Incubadoras.")
 
             st.markdown("---")
-            st.subheader("📋 Detalle de Incubadoras")
+            st.subheader("Detalle de Incubadoras")
             st.dataframe(df_inc_activa, use_container_width=True)
         else:
             st.info("No hay datos cargados para Incubadoras.")
 
     else: # Proyectos PAC
-        st.subheader("📊 Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
+        st.subheader("Indicadores Clave - Proyectos PAC (Sin Borradores ni Canceladas)")
         if not df_pac.empty:
             total_proyectos_pac = df_pac['ID'].nunique() if 'ID' in df_pac.columns else len(df_pac)
             total_estudiantes = int(df_pac['ESTUDIANTES PARTICIPANTES'].sum()) if 'ESTUDIANTES PARTICIPANTES' in df_pac.columns else 0
@@ -254,7 +255,7 @@ if app_mode == "📊 Dashboard Principal":
             col2.metric("Estudiantes Participantes", total_estudiantes)
             
             st.markdown("---")
-            st.subheader("📈 Cantidad de Proyectos PAC por Facultad Líder")
+            st.subheader("Cantidad de Proyectos PAC por Facultad Líder")
             if 'FACULTAD LÍDER' in df_pac.columns:
                 df_proyectos_unicos = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
                 df_fac_pac = df_proyectos_unicos['FACULTAD LÍDER'].value_counts().reset_index()
@@ -272,11 +273,11 @@ if app_mode == "📊 Dashboard Principal":
                         color='Cantidad de Proyectos',
                         color_continuous_scale='Blues'
                     )
-                    fig_pac.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad")
+                    fig_pac.update_layout(xaxis_title="Número de Proyectos", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
                     st.plotly_chart(fig_pac, use_container_width=True)
             
             st.markdown("---")
-            st.subheader("📋 Detalle de Proyectos PAC")
+            st.subheader("Detalle de Proyectos PAC")
             st.dataframe(df_pac, use_container_width=True)
         else:
             st.info("No hay datos cargados para Proyectos PAC.")
@@ -284,11 +285,12 @@ if app_mode == "📊 Dashboard Principal":
 # -------------------------------------------------------------
 # OPCIÓN 2: SOCIOS COMUNITARIOS
 # -------------------------------------------------------------
-elif app_mode == "🤝 Socios Comunitarios":
-    st.title("🤝 Red de Socios Comunitarios")
+elif app_mode == "Socios Comunitarios":
+    st.title("Red de Socios Comunitarios")
     st.markdown("Extracción directa de organizaciones y facultades desde las estructuras limpias.")
     
-    tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras", "BD Innovación"], horizontal=True)
+    # Menú origen sin BD Innovación
+    tipo_fuente = st.radio("Seleccionar archivo origen:", ["Proyectos PAC", "Reporte General Incubadoras"], horizontal=True)
     st.markdown("---")
     
     if tipo_fuente == "Proyectos PAC":
@@ -309,8 +311,7 @@ elif app_mode == "🤝 Socios Comunitarios":
         else:
             socios_agrupados = pd.DataFrame()
 
-    elif tipo_fuente == "Reporte General Incubadoras":
-        # Usamos la tabla cruzada de la pestaña 'Organizaciones'
+    else: # Reporte General Incubadoras
         df_src = df_inc_orgs
         if not df_src.empty:
             col_org = 'ORGANIZACIÓN'
@@ -326,37 +327,18 @@ elif app_mode == "🤝 Socios Comunitarios":
             ).reset_index()
         else:
             socios_agrupados = pd.DataFrame()
-            
-    else: # BD Innovación
-        df_src = df_bd
-        col_org = next((c for c in df_src.columns if 'organización' in c.lower() or 'organizacion' in c.lower() or 'entidad' in c.lower()), None)
-        col_fac = next((c for c in df_src.columns if 'facultad' in c.lower()), None)
-        col_id = next((c for c in df_src.columns if 'iniciativa' in c.lower()), None)
-        col_tipo = next((c for c in df_src.columns if 'categoria' in c.lower()), None)
-        
-        if not df_src.empty and col_org and col_fac:
-            df_org_clean = df_src.dropna(subset=[col_org]).copy()
-            socios_agrupados = df_org_clean.groupby(col_org).agg(
-                total_convenios=(col_org, 'count'),
-                codigos_ids=(col_id, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_id else (col_org, lambda x: "N/A"),
-                facultades=(col_fac, lambda x: ", ".join(x.dropna().astype(str).unique())),
-                tipos=(col_tipo, lambda x: ", ".join(x.dropna().astype(str).unique())) if col_tipo else (col_org, lambda x: "N/A")
-            ).reset_index()
-        else:
-            socios_agrupados = pd.DataFrame()
 
     if not socios_agrupados.empty:
         total_socios = len(socios_agrupados)
         total_facultades = socios_agrupados['facultades'].nunique()
         
         col_m1, col_m2 = st.columns(2)
-        col_m1.metric("🏢 Total de Entidades / Socios Comunitarios", total_socios)
-        col_m2.metric("🏛️ Total de Facultades Vinculadas", total_facultades)
+        col_m1.metric("Total de Entidades / Socios Comunitarios", total_socios)
+        col_m2.metric("Total de Facultades Vinculadas", total_facultades)
         
         st.markdown("---")
-        st.subheader("📈 Distribución de Entidades por Facultad")
+        st.subheader("Distribución de Entidades por Facultad")
         
-        # Desglosar por facultad para el gráfico
         df_grafico = socios_agrupados.assign(facultades=socios_agrupados['facultades'].str.split(', ')).explode('facultades')
         df_grafico = df_grafico.groupby('facultades')['total_convenios'].sum().reset_index()
         df_grafico.columns = ['Facultad', 'Cantidad de Entidades']
@@ -371,20 +353,20 @@ elif app_mode == "🤝 Socios Comunitarios":
                 title=f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})",
                 text='Cantidad de Entidades',
                 color='Cantidad de Entidades',
-                color_continuous_scale='Greens'
+                color_continuous_scale='Blues'
             )
-            fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad")
+            fig.update_layout(xaxis_title="Cantidad de Entidades", yaxis_title="Facultad", plot_bgcolor='white', paper_bgcolor='white')
             st.plotly_chart(fig, use_container_width=True)
         
         st.markdown("---")
-        st.subheader("🏢 Detalle por Entidad / Socio Comunitario")
+        st.subheader("Detalle por Entidad / Socio Comunitario")
         
         cols = st.columns(2)
         for idx, row in socios_agrupados.iterrows():
             with cols[idx % 2]:
                 st.markdown(f"""
                     <div class="socio-card">
-                        <div class="socio-title">🏢 {row[col_org]}</div>
+                        <div class="socio-title">{row[col_org]}</div>
                         <div class="socio-detail"><b>Registros / Proyectos:</b> {row['total_convenios']} (IDs: {row['codigos_ids']})</div>
                         <div class="socio-detail"><b>Facultad Involucrada:</b> {row['facultades']}</div>
                         <div class="socio-detail"><b>Tipo / Detalle:</b> {row['tipos']}</div>
@@ -396,11 +378,11 @@ elif app_mode == "🤝 Socios Comunitarios":
 # -------------------------------------------------------------
 # OPCIÓN 3: GESTIÓN, ELIMINACIÓN Y ACTUALIZACIÓN (SOLO ADMIN)
 # -------------------------------------------------------------
-elif app_mode == "📁 Gestión y Actualización de Archivos" and st.session_state.is_admin:
-    st.title("📂 Gestión, Limpieza y Actualización de Archivos")
+elif app_mode == "Gestión y Actualización de Archivos" and st.session_state.is_admin:
+    st.title("Gestión, Limpieza y Actualización de Archivos")
     st.markdown("Administra los archivos almacenados estáticamente en el sistema.")
 
-    st.subheader("🗑️ Selector para Eliminar Archivos Existentes")
+    st.subheader("Selector para Eliminar Archivos Existentes")
     archivos_excel_actuales = [f for f in os.listdir('.') if f.endswith('.xlsx')]
     
     if archivos_excel_actuales:
@@ -415,7 +397,7 @@ elif app_mode == "📁 Gestión y Actualización de Archivos" and st.session_sta
         st.info("No hay archivos Excel en la raíz actualmente.")
 
     st.markdown("---")
-    st.subheader("📤 Subir Nuevo Archivo Estático")
+    st.subheader("Subir Nuevo Archivo Estático")
     dataset_choice = st.selectbox("Destino de la base de datos:", ["BD Innovación", "Reporte General Incubadoras", "Proyectos PAC"])
     uploaded_file = st.file_uploader("Selecciona un nuevo archivo Excel (.xlsx)", type=["xlsx"])
     
