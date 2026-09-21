@@ -54,45 +54,39 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# FUNCIÓN AUXILIAR PARA ESTILOS PROFESIONALES EN PLOTLY (TIPO POWER BI)
+# FUNCIÓN AUXILIAR PARA ESTILOS PROFESIONALES EN PLOTLY (TIPO POWER BI - TORTA)
 # -------------------------------------------------------------
-def aplicar_estilo_powerbi(fig, titulo=""):
+def aplicar_estilo_powerbi_pie(fig, titulo=""):
     fig.update_layout(
         title=dict(
             text=titulo,
-            font=dict(size=15, color="#1e293b", family="Segoe UI, sans-serif"),
-            x=0.02,
+            font=dict(size=14, color="#1e293b", family="Segoe UI, sans-serif"),
+            x=0.5,
+            xanchor='center',
             y=0.95
         ),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Segoe UI, sans-serif", color="#334155", size=12),
-        margin=dict(t=50, b=30, l=20, r=20),
-        xaxis=dict(
-            showgrid=True,
-            gridcolor='#f1f5f9',
-            zeroline=False,
-            showline=True,
-            linewidth=1,
-            linecolor='#cbd5e1'
-        ),
-        yaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            showline=True,
-            linewidth=1,
-            linecolor='#cbd5e1'
+        font=dict(family="Segoe UI, sans-serif", color="#334155", size=11),
+        margin=dict(t=50, b=20, l=10, r=10),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10)
         ),
         hoverlabel=dict(
             bgcolor="#ffffff",
-            font_size=13,
+            font_size=12,
             font_family="Segoe UI, sans-serif"
         )
     )
     fig.update_traces(
-        marker_line_color='#002855',
-        marker_line_width=1.5,
-        opacity=0.9
+        textposition='inside',
+        textinfo='percent+value',
+        marker=dict(line=dict(color='#ffffff', width=2))
     )
     return fig
 
@@ -196,7 +190,7 @@ else:
 app_mode = st.sidebar.selectbox("Ir a:", opciones_menu)
 
 # -------------------------------------------------------------
-# OPCIÓN 1: DASHBOARD PRINCIPAL (3 GRÁFICOS: PAC, INCUBADORAS, INNOVACIÓN)
+# OPCIÓN 1: DASHBOARD PRINCIPAL (3 GRÁFICOS DE TORTA: PAC, INCUBADORAS, INNOVACIÓN)
 # -------------------------------------------------------------
 if app_mode == "Dashboard Principal":
     st.markdown("### Dirección General de Vinculación con el Medio")
@@ -216,30 +210,29 @@ if app_mode == "Dashboard Principal":
     m3.metric("Total Iniciativas Innovación", tot_bd)
 
     st.markdown("---")
-    st.subheader("Cantidad de Proyectos por Facultad según Iniciativa")
+    st.subheader("Distribución Porcentual de Proyectos por Facultad según Iniciativa")
 
-    # Layout de 3 columnas para los 3 gráficos profesionales lado a lado
+    # Layout de 3 columnas para los 3 gráficos de torta lado a lado
     col_g1, col_g2, col_g3 = st.columns(3)
 
-    # 1. Gráfico PAC
+    # 1. Gráfico de Torta PAC
     with col_g1:
         st.markdown("##### Proyectos PAC")
         if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
             df_p_pac = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
             df_fac_pac = df_p_pac['FACULTAD LÍDER'].value_counts().reset_index()
             df_fac_pac.columns = ['Facultad', 'Cantidad']
-            df_fac_pac = df_fac_pac.sort_values(by='Cantidad', ascending=True)
             
-            fig_pac = px.bar(
-                df_fac_pac, x='Cantidad', y='Facultad', orientation='h',
-                text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+            fig_pac = px.pie(
+                df_fac_pac, names='Facultad', values='Cantidad',
+                hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
             )
-            fig_pac = aplicar_estilo_powerbi(fig_pac, "PAC por Facultad")
+            fig_pac = aplicar_estilo_powerbi_pie(fig_pac, "Participación PAC por Facultad")
             st.plotly_chart(fig_pac, use_container_width=True)
         else:
             st.info("Sin datos PAC disponibles.")
 
-    # 2. Gráfico Incubadoras
+    # 2. Gráfico de Torta Incubadoras
     with col_g2:
         st.markdown("##### Incubadoras")
         if dict_inc and hoja_inc_nombre in dict_inc:
@@ -248,20 +241,19 @@ if app_mode == "Dashboard Principal":
             if col_fac_inc:
                 df_fac_inc = df_inc_activa[col_fac_inc].value_counts().reset_index()
                 df_fac_inc.columns = ['Facultad', 'Cantidad']
-                df_fac_inc = df_fac_inc.sort_values(by='Cantidad', ascending=True)
                 
-                fig_inc = px.bar(
-                    df_fac_inc, x='Cantidad', y='Facultad', orientation='h',
-                    text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+                fig_inc = px.pie(
+                    df_fac_inc, names='Facultad', values='Cantidad',
+                    hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
                 )
-                fig_inc = aplicar_estilo_powerbi(fig_inc, "Incubadoras por Facultad")
+                fig_inc = aplicar_estilo_powerbi_pie(fig_inc, "Participación Incubadoras por Facultad")
                 st.plotly_chart(fig_inc, use_container_width=True)
             else:
                 st.info("Columna de facultad no encontrada.")
         else:
             st.info("Sin datos de Incubadoras.")
 
-    # 3. Gráfico BD Innovación
+    # 3. Gráfico de Torta BD Innovación
     with col_g3:
         st.markdown("##### BD Innovación")
         if not df_bd.empty:
@@ -269,13 +261,12 @@ if app_mode == "Dashboard Principal":
             if col_fac_bd:
                 df_fac_bd = df_bd[col_fac_bd].value_counts().reset_index()
                 df_fac_bd.columns = ['Facultad', 'Cantidad']
-                df_fac_bd = df_fac_bd.sort_values(by='Cantidad', ascending=True)
                 
-                fig_bd = px.bar(
-                    df_fac_bd, x='Cantidad', y='Facultad', orientation='h',
-                    text='Cantidad', color='Cantidad', color_continuous_scale='Blues'
+                fig_bd = px.pie(
+                    df_fac_bd, names='Facultad', values='Cantidad',
+                    hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r
                 )
-                fig_bd = aplicar_estilo_powerbi(fig_bd, "Innovación por Facultad")
+                fig_bd = aplicar_estilo_powerbi_pie(fig_bd, "Participación Innovación por Facultad")
                 st.plotly_chart(fig_bd, use_container_width=True)
             else:
                 st.info("Columna de facultad no encontrada.")
@@ -364,7 +355,6 @@ elif app_mode == "Socios Comunitarios":
                 df_grafico, x='Cantidad de Entidades', y='Facultad', orientation='h',
                 text='Cantidad de Entidades', color='Cantidad de Entidades', color_continuous_scale='Blues'
             )
-            fig = aplicar_estilo_powerbi(fig, f"Cantidad de Entidades / Socios por Facultad ({tipo_fuente})")
             st.plotly_chart(fig, use_container_width=True)
         
         st.markdown("---")
