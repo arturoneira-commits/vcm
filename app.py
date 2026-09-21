@@ -10,7 +10,7 @@ st.set_page_config(page_title="Dirección General de Vinculación con el Medio -
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# Estilos CSS personalizados
+# Estilos CSS personalizados para reducir el espacio superior y ajustar componentes
 css_toolbar_oculta = "header {visibility: hidden;}" if not st.session_state.is_admin else "header {visibility: visible;}"
 
 st.markdown(f"""
@@ -18,6 +18,13 @@ st.markdown(f"""
     {css_toolbar_oculta}
     .main {{ background-color: #f8fafc; }}
     .stApp {{ background-color: #f8fafc; }}
+    
+    /* Reducir el espacio superior predeterminado de Streamlit */
+    .block-container {{
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+    }}
+    
     .stMetric {{ background-color: #ffffff; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }}
     .socio-card {{
         background-color: #ffffff;
@@ -210,24 +217,16 @@ if app_mode == "Dashboard Principal":
     m3.metric("Total Iniciativas Innovación", tot_bd)
 
     st.markdown("---")
-
-    # Menú de selección de iniciativa (Foco principal predeterminado en "Todos")
     st.markdown("##### Filtrar Vista de Gráficos por Iniciativa")
-    filtro_iniciativa = st.radio(
-        "Seleccione iniciativa:",
-        ["Todos", "PAC", "Incubadoras", "Innovación"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
 
-    st.markdown("---")
+    # Pestañas de iniciativa (La primera pestaña es "Todos" y será el foco principal por defecto)
+    tab_todos, tab_pac, tab_inc, tab_inn = st.tabs(["Todos", "PAC", "Incubadoras", "Innovación"])
 
-    # Renderizado dinámico según la selección (Foco predeterminado: "Todos" muestra los 3 gráficos)
-    if filtro_iniciativa == "Todos":
+    # --- PESTAÑA: TODOS (Muestra los 3 gráficos lado a lado) ---
+    with tab_todos:
         st.subheader("Distribución Porcentual de Proyectos por Facultad (Todas las Iniciativas)")
         col_g1, col_g2, col_g3 = st.columns(3)
 
-        # 1. Gráfico PAC
         with col_g1:
             st.markdown("##### Proyectos PAC")
             if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
@@ -244,7 +243,6 @@ if app_mode == "Dashboard Principal":
             else:
                 st.info("Sin datos PAC disponibles.")
 
-        # 2. Gráfico Incubadoras
         with col_g2:
             st.markdown("##### Incubadoras")
             if dict_inc and hoja_inc_nombre in dict_inc:
@@ -265,7 +263,6 @@ if app_mode == "Dashboard Principal":
             else:
                 st.info("Sin datos de Incubadoras.")
 
-        # 3. Gráfico BD Innovación
         with col_g3:
             st.markdown("##### BD Innovación")
             if not df_bd.empty:
@@ -285,7 +282,8 @@ if app_mode == "Dashboard Principal":
             else:
                 st.info("Sin datos de Innovación.")
 
-    elif filtro_iniciativa == "PAC":
+    # --- PESTAÑA: PAC ---
+    with tab_pac:
         st.subheader("Distribución Detallada - Proyectos PAC por Facultad")
         if not df_pac.empty and 'FACULTAD LÍDER' in df_pac.columns:
             df_p_pac = df_pac.drop_duplicates(subset=['ID']) if 'ID' in df_pac.columns else df_pac
@@ -301,7 +299,8 @@ if app_mode == "Dashboard Principal":
         else:
             st.info("Sin datos PAC disponibles.")
 
-    elif filtro_iniciativa == "Incubadoras":
+    # --- PESTAÑA: INCUBADORAS ---
+    with tab_inc:
         st.subheader("Distribución Detallada - Incubadoras por Facultad")
         if dict_inc and hoja_inc_nombre in dict_inc:
             df_inc_activa = dict_inc[hoja_inc_nombre]
@@ -321,7 +320,8 @@ if app_mode == "Dashboard Principal":
         else:
             st.info("Sin datos de Incubadoras.")
 
-    elif filtro_iniciativa == "Innovación":
+    # --- PESTAÑA: INNOVACIÓN ---
+    with tab_inn:
         st.subheader("Distribución Detallada - BD Innovación por Facultad")
         if not df_bd.empty:
             col_fac_bd = next((c for c in df_bd.columns if 'facultad' in c.lower()), None)
