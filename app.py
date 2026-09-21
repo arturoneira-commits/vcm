@@ -17,23 +17,34 @@ st.set_page_config(
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
+# Ocultar barra superior / menú de edición para usuarios que NO son Admin
+hide_top_bar_style = "" if st.session_state.is_admin else """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppHeader {display: none;}
+    </style>
+"""
+
 # CSS Personalizado Inspirado en Power BI / Dashboards Ejecutivos
-st.markdown("""
+st.markdown(f"""
+    {hide_top_bar_style}
     <style>
     /* Estilos generales y fondo neutral moderno */
-    .stApp {
+    .stApp {{
         background-color: #F3F4F6;
         font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-    }
+    }}
     
-    .block-container {
+    .block-container {{
         padding-top: 1.2rem !important;
         padding-bottom: 2rem !important;
         max-width: 98% !important;
-    }
+    }}
     
     /* Header Institucional */
-    .header-container {
+    .header-container {{
         background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
         padding: 22px 28px;
         border-radius: 12px;
@@ -43,23 +54,23 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-    }
-    .header-title {
+    }}
+    .header-title {{
         font-size: 24px;
         font-weight: 700;
         letter-spacing: -0.5px;
         margin: 0;
         color: #FFFFFF;
-    }
-    .header-subtitle {
+    }}
+    .header-subtitle {{
         font-size: 13px;
         color: #93C5FD;
         margin-top: 4px;
         font-weight: 500;
-    }
+    }}
     
     /* Tarjetas KPI (Power BI Style) */
-    .kpi-card {
+    .kpi-card {{
         background-color: #FFFFFF;
         border-radius: 10px;
         padding: 18px 20px;
@@ -67,44 +78,44 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         height: 100%;
-    }
-    .kpi-card:hover {
+    }}
+    .kpi-card:hover {{
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-    }
-    .kpi-title {
+    }}
+    .kpi-title {{
         font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
         color: #64748B;
         letter-spacing: 0.5px;
         margin-bottom: 8px;
-    }
-    .kpi-value {
+    }}
+    .kpi-value {{
         font-size: 30px;
         font-weight: 800;
         color: #0F172A;
         line-height: 1;
         margin-bottom: 6px;
-    }
-    .kpi-subtext {
+    }}
+    .kpi-subtext {{
         font-size: 11px;
         color: #2563EB;
         font-weight: 600;
-    }
+    }}
     
     /* Tarjetas de Contenedores y Gráficos */
-    .pbi-card {
+    .pbi-card {{
         background-color: #FFFFFF;
         border-radius: 10px;
         padding: 20px;
         border: 1px solid #E2E8F0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-bottom: 20px;
-    }
+    }}
     
     /* Cards de Socios Comunitarios */
-    .socio-card {
+    .socio-card {{
         background-color: #FFFFFF;
         border-radius: 10px;
         border: 1px solid #E2E8F0;
@@ -113,26 +124,26 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-bottom: 16px;
         transition: all 0.2s ease;
-    }
-    .socio-card:hover {
+    }}
+    .socio-card:hover {{
         border-left-color: #1D4ED8;
         box-shadow: 0 4px 8px rgba(0,0,0,0.06);
-    }
-    .socio-title {
+    }}
+    .socio-title {{
         font-size: 16px;
         font-weight: 700;
         color: #0F172A;
         margin-bottom: 8px;
-    }
-    .socio-detail {
+    }}
+    .socio-detail {{
         font-size: 13px;
         color: #475569;
         margin-bottom: 4px;
         line-height: 1.4;
-    }
+    }}
     
     /* Badges y elementos secundarios */
-    .admin-badge {
+    .admin-badge {{
         background-color: #EFF6FF;
         color: #1D4ED8;
         padding: 8px 12px;
@@ -142,16 +153,16 @@ st.markdown("""
         text-align: center;
         margin-bottom: 12px;
         border: 1px solid #BFDBFE;
-    }
+    }}
     
     /* Ajustes visuales para Pestañas Streamlit */
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
         background-color: #E2E8F0;
         padding: 4px;
         border-radius: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
+    }}
+    .stTabs [data-baseweb="tab"] {{
         height: 38px;
         white-space: pre;
         border-radius: 6px;
@@ -159,12 +170,12 @@ st.markdown("""
         font-weight: 600;
         color: #475569;
         background-color: transparent;
-    }
-    .stTabs [aria-selected="true"] {
+    }}
+    .stTabs [aria-selected="true"] {{
         background-color: #FFFFFF !important;
         color: #1E3A8A !important;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -308,7 +319,6 @@ if pac_file:
 # =============================================================
 # 4. HEADER Y NAVEGACIÓN LATERAL
 # =============================================================
-# Header Institucional Principal
 st.markdown("""
     <div class="header-container">
         <div>
@@ -368,7 +378,7 @@ if app_mode == "Dashboard Principal":
             <div class="kpi-card">
                 <div class="kpi-title">Proyectos PAC</div>
                 <div class="kpi-value">{tot_pac}</div>
-                <div class="kpi-subtext">{(tot_pac/tot_general*100):.1f}% del Total</div>
+                <div class="kpi-subtext">{(tot_pac/tot_general*100) if tot_general > 0 else 0:.1f}% del Total</div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -377,7 +387,7 @@ if app_mode == "Dashboard Principal":
             <div class="kpi-card">
                 <div class="kpi-title">Incubadoras</div>
                 <div class="kpi-value">{tot_inc}</div>
-                <div class="kpi-subtext">{(tot_inc/tot_general*100):.1f}% del Total</div>
+                <div class="kpi-subtext">{(tot_inc/tot_general*100) if tot_general > 0 else 0:.1f}% del Total</div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -386,7 +396,7 @@ if app_mode == "Dashboard Principal":
             <div class="kpi-card">
                 <div class="kpi-title">BD Innovación</div>
                 <div class="kpi-value">{tot_bd}</div>
-                <div class="kpi-subtext">{(tot_bd/tot_general*100):.1f}% del Total</div>
+                <div class="kpi-subtext">{(tot_bd/tot_general*100) if tot_general > 0 else 0:.1f}% del Total</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -521,7 +531,6 @@ if app_mode == "Dashboard Principal":
 elif app_mode == "Socios Comunitarios":
     st.markdown("### Red de Socios Comunitarios")
     
-    # Filtro superior de origen
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Filtros de Socios")
     tipo_fuente = st.sidebar.radio("Seleccionar origen de datos:", ["Proyectos PAC", "Reporte General Incubadoras"])
@@ -584,7 +593,6 @@ elif app_mode == "Socios Comunitarios":
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Gráfico por facultad
         st.markdown('<div class="pbi-card">', unsafe_allow_html=True)
         df_grafico = socios_agrupados.assign(facultades=socios_agrupados['facultades'].str.split(', ')).explode('facultades')
         df_grafico = df_grafico.groupby('facultades')['total_convenios'].sum().reset_index()
@@ -596,7 +604,6 @@ elif app_mode == "Socios Comunitarios":
         st.plotly_chart(fig_socios, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Tarjetas detalladas de socios
         st.markdown("### Directorio de Socios Comunitarios")
         search_term = st.text_input("Buscar por nombre de organización:", "")
         
