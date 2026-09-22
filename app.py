@@ -184,10 +184,14 @@ st.markdown(f"""
 PALETA_INSTITUCIONAL = ['#1E3A8A', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#CBD5E1']
 
 def obtener_total_estudiantes(df):
-    """Suma automáticamente los valores numéricos de la columna relacionada a estudiantes."""
+    """Busca dinámicamente la columna de estudiantes/participantes y suma los valores."""
     if df is None or df.empty:
         return 0
-    col_est = next((c for c in df.columns if any(k in c.lower() for k in ['estudiante', 'alumno', 'participante'])), None)
+    # Priorizar variaciones exactas de "estudiantes participante"
+    col_est = next((c for c in df.columns if 'estudiante' in c.lower() and 'participan' in c.lower()), None)
+    if not col_est:
+        col_est = next((c for c in df.columns if any(k in c.lower() for k in ['estudiante', 'alumno', 'participante'])), None)
+    
     if col_est:
         return int(pd.to_numeric(df[col_est], errors='coerce').fillna(0).sum())
     return 0
@@ -351,7 +355,7 @@ if app_mode == "Dashboard Principal":
     tot_bd = len(df_bd) if not df_bd.empty else 0
     tot_general = tot_pac + tot_inc + tot_bd
 
-    # Totales de Estudiantes
+    # Totales de Estudiantes (Extrayendo específicamente la columna ESTUDIANTES PARTICIPANTE para PAC)
     est_pac = obtener_total_estudiantes(df_pac)
     est_inc = obtener_total_estudiantes(dict_inc[hoja_inc_nombre]) if (dict_inc and hoja_inc_nombre in dict_inc) else 0
     est_bd = obtener_total_estudiantes(df_bd)
