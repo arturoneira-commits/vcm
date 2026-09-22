@@ -179,9 +179,18 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # =============================================================
-# 2. FUNCIONES DE FORMATO Y ESTILO PARA GRÁFICOS (SIN SOLAPAMIENTO)
+# 2. FUNCIONES AUXILIARES Y DE ESTILO PARA GRÁFICOS
 # =============================================================
 PALETA_INSTITUCIONAL = ['#1E3A8A', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#CBD5E1']
+
+def obtener_total_estudiantes(df):
+    """Suma automáticamente los valores numéricos de la columna relacionada a estudiantes."""
+    if df is None or df.empty:
+        return 0
+    col_est = next((c for c in df.columns if any(k in c.lower() for k in ['estudiante', 'alumno', 'participante'])), None)
+    if col_est:
+        return int(pd.to_numeric(df[col_est], errors='coerce').fillna(0).sum())
+    return 0
 
 def aplicar_estilo_powerbi_bar(fig, titulo=""):
     fig.update_layout(
@@ -335,11 +344,18 @@ app_mode = st.sidebar.radio("Ir a la sección:", opciones_menu)
 # 5. DASHBOARD PRINCIPAL
 # =============================================================
 if app_mode == "Dashboard Principal":
+    # Totales de Proyectos
     tot_pac = df_pac['ID'].nunique() if ('ID' in df_pac.columns and not df_pac.empty) else len(df_pac)
     hoja_inc_nombre = 'Incubadoras' if 'Incubadoras' in dict_inc else (list(dict_inc.keys())[0] if dict_inc else None)
     tot_inc = len(dict_inc[hoja_inc_nombre]) if hoja_inc_nombre and hoja_inc_nombre in dict_inc else 0
     tot_bd = len(df_bd) if not df_bd.empty else 0
     tot_general = tot_pac + tot_inc + tot_bd
+
+    # Totales de Estudiantes
+    est_pac = obtener_total_estudiantes(df_pac)
+    est_inc = obtener_total_estudiantes(dict_inc[hoja_inc_nombre]) if (dict_inc and hoja_inc_nombre in dict_inc) else 0
+    est_bd = obtener_total_estudiantes(df_bd)
+    est_tot = est_pac + est_inc + est_bd
 
     # --- KPIs DE ENCABEZADO ---
     kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
@@ -347,9 +363,12 @@ if app_mode == "Dashboard Principal":
     with kpi_col1:
         st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-title">Total Iniciativas</div>
+                <div class="kpi-title">TOTAL INICIATIVAS</div>
                 <div class="kpi-value">{tot_general}</div>
                 <div class="kpi-subtext">Consolidado Institucional</div>
+                <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-top: 10px; border-top: 1px solid #F1F5F9; padding-top: 6px;">
+                    👨‍🎓 {est_tot:,} Estudiantes
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -357,9 +376,12 @@ if app_mode == "Dashboard Principal":
         pct_pac = (tot_pac / tot_general * 100) if tot_general > 0 else 0
         st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-title">Proyectos PAC</div>
+                <div class="kpi-title">PROYECTOS PAC</div>
                 <div class="kpi-value">{tot_pac}</div>
                 <div class="kpi-subtext">{pct_pac:.1f}% del Total</div>
+                <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-top: 10px; border-top: 1px solid #F1F5F9; padding-top: 6px;">
+                    👨‍🎓 {est_pac:,} Estudiantes
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -367,9 +389,12 @@ if app_mode == "Dashboard Principal":
         pct_inc = (tot_inc / tot_general * 100) if tot_general > 0 else 0
         st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-title">Incubadoras</div>
+                <div class="kpi-title">INCUBADORAS</div>
                 <div class="kpi-value">{tot_inc}</div>
                 <div class="kpi-subtext">{pct_inc:.1f}% del Total</div>
+                <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-top: 10px; border-top: 1px solid #F1F5F9; padding-top: 6px;">
+                    👨‍🎓 {est_inc:,} Estudiantes
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -377,9 +402,12 @@ if app_mode == "Dashboard Principal":
         pct_bd = (tot_bd / tot_general * 100) if tot_general > 0 else 0
         st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-title">BD Innovación</div>
+                <div class="kpi-title">BD INNOVACIÓN</div>
                 <div class="kpi-value">{tot_bd}</div>
                 <div class="kpi-subtext">{pct_bd:.1f}% del Total</div>
+                <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-top: 10px; border-top: 1px solid #F1F5F9; padding-top: 6px;">
+                    👨‍🎓 {est_bd:,} Estudiantes
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
